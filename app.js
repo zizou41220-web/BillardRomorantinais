@@ -151,7 +151,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 pointRadius: 4,
                 pointBackgroundColor: '#eab308',
                 tension: 0.3,
-                fill: false
+                fill: false,
+                yAxisID: 'y1'
               },
               {
                 type: 'bar',
@@ -160,7 +161,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 backgroundColor: 'rgba(16, 185, 129, 0.6)',
                 borderColor: 'rgba(16, 185, 129, 1)',
                 borderWidth: 1,
-                borderRadius: 4
+                borderRadius: 4,
+                yAxisID: 'y'
               }
             ]
           },
@@ -169,12 +171,28 @@ document.addEventListener('DOMContentLoaded', async () => {
             maintainAspectRatio: false,
             scales: {
               y: {
+                type: 'linear',
+                display: true,
+                position: 'left',
                 beginAtZero: true,
                 ticks: {
                   callback: function (value) { return value + ' €'; },
                   color: textColor
                 },
-                grid: { color: gridColor }
+                grid: { color: gridColor },
+                title: { display: true, text: 'Mensuel', color: textColor, font: { size: 10 } }
+              },
+              y1: {
+                type: 'linear',
+                display: true,
+                position: 'right',
+                beginAtZero: true,
+                ticks: {
+                  callback: function (value) { return value + ' €'; },
+                  color: '#eab308'
+                },
+                grid: { drawOnChartArea: false },
+                title: { display: true, text: 'Cumul', color: '#eab308', font: { size: 10 } }
               },
               x: {
                 ticks: { color: textColor },
