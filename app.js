@@ -38,72 +38,131 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // --- STATISTIQUES ---
     let salesChartInstance = null;
+    let isSeasonSelectorInitialized = false;
+    let allConsData = null;
 
     async function renderSalesChart() {
       const canvas = document.getElementById('salesChart');
       if (!canvas) return;
 
       try {
-        const { data: consData, error } = await supabaseClient
-          .from('consumptions')
-          .select('created_at, price_at_time, quantity')
-          .order('created_at', { ascending: true });
+        if (!allConsData) {
+          const { data: consData, error } = await supabaseClient
+            .from('consumptions')
+            .select('created_at, price_at_time, quantity')
+            .order('created_at', { ascending: true });
 
-        if (error) throw error;
+          if (error) throw error;
+          allConsData = consData;
+        }
 
-        const monthlySales = {};
-        let totalRevenue = 0;
+        const selector = document.getElementById('season-selector');
+        
+        const currentDate = new Date();
+        const currentM = currentDate.getMonth();
+        const currentY = currentDate.getFullYear();
+        const currentSeason = currentM >= 8 ? currentY : currentY - 1;
+        const currentMonthIndex = currentM >= 8 ? currentM - 8 : currentM + 4;
 
-        consData.forEach(c => {
-          const date = new Date(c.created_at);
-          const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-
-          const qty = c.quantity || 1;
-          const price = c.price_at_time || 0;
-          const amount = qty * price;
-
-          if (!monthlySales[monthKey]) {
-            monthlySales[monthKey] = 0;
+        if (!isSeasonSelectorInitialized && selector) {
+          const seasons = new Set();
+          allConsData.forEach(c => {
+            const d = new Date(c.created_at);
+            const y = d.getFullYear();
+            const seasonStartYear = d.getMonth() >= 8 ? y : y - 1;
+            seasons.add(seasonStartYear);
+          });
+          
+          selector.innerHTML = '';
+          const sortedSeasons = Array.from(seasons).sort((a, b) => b - a);
+          if (sortedSeasons.length === 0) {
+            sortedSeasons.push(currentSeason);
           }
-          monthlySales[monthKey] += amount;
-          totalRevenue += amount;
-        });
+          
+          sortedSeasons.forEach(y => {
+            const opt = document.createElement('option');
+            opt.value = y;
+            opt.textContent = `Saison ${y}-${y+1}`;
+            selector.appendChild(opt);
+          });
 
+          selector.addEventListener('change', () => {
+            renderSalesChart();
+          });
+          isSeasonSelectorInitialized = true;
+        }
+
+        const selectedSeason = selector ? parseInt(selector.value) : currentSeason;
+        
+        const months = ["Sept", "Oct", "Nov", "Déc", "Jan", "Fév", "Mars", "Avr", "Mai", "Juin", "Juil", "Août"];
+        const monthlySales = new Array(12).fill(0);
+        let totalRevenue = 0;
+        
+        allConsData.forEach(c => {
+          const d = new Date(c.created_at);
+          const m = d.getMonth();
+          const y = d.getFullYear();
+          const seasonStartYear = m >= 8 ? y : y - 1;
+          
+          if (seasonStartYear === selectedSeason) {
+            const index = (m >= 8) ? (m - 8) : (m + 4);
+            const qty = c.quantity || 1;
+            const price = c.price_at_time || 0;
+            const amount = qty * price;
+            
+            monthlySales[index] += amount;
+            totalRevenue += amount;
+          }
+        });
+        
         document.getElementById('stat-total-sales').textContent = totalRevenue.toFixed(2).replace(/\./g, ',') + ' €';
 
-        const labels = Object.keys(monthlySales);
-        const data = Object.values(monthlySales);
-        const formattedLabels = labels.map(l => {
-          const parts = l.split('-');
-          return `${parts[1]}/${parts[0]}`;
-        });
+        const cumulativeSales = [];
+        let cum = 0;
+        for (let i = 0; i < monthlySales.length; i++) {
+          if (selectedSeason === currentSeason && i > currentMonthIndex) {
+            cumulativeSales.push(null);
+          } else {
+            cum += monthlySales[i];
+            cumulativeSales.push(cum);
+          }
+        }
 
         if (salesChartInstance) {
           salesChartInstance.destroy();
         }
 
         const ctx = canvas.getContext('2d');
-
-        // Style properties to match dark theme
         const gridColor = 'rgba(255, 255, 255, 0.05)';
         const textColor = '#94a3b8';
 
-        salesChartInstance = new Chart(ctx, {
-          type: 'line',
+        salesChartInstance = new window.Chart(ctx, {
+          type: 'bar',
           data: {
-            labels: formattedLabels,
-            datasets: [{
-              label: 'Chiffre d\'Affaires Mensuel (€)',
-              data: data,
-              backgroundColor: 'rgba(16, 185, 129, 0.1)',
-              borderColor: 'rgba(16, 185, 129, 1)',
-              borderWidth: 2,
-              pointBackgroundColor: 'rgba(16, 185, 129, 1)',
-              pointRadius: 4,
-              pointHoverRadius: 6,
-              tension: 0.3,
-              fill: true
-            }]
+            labels: months,
+            datasets: [
+              {
+                type: 'line',
+                label: 'Progression Cumulée (€)',
+                data: cumulativeSales,
+                borderColor: '#eab308',
+                backgroundColor: '#eab308',
+                borderWidth: 2,
+                pointRadius: 4,
+                pointBackgroundColor: '#eab308',
+                tension: 0.3,
+                fill: false
+              },
+              {
+                type: 'bar',
+                label: 'CA Mensuel (€)',
+                data: monthlySales,
+                backgroundColor: 'rgba(16, 185, 129, 0.6)',
+                borderColor: 'rgba(16, 185, 129, 1)',
+                borderWidth: 1,
+                borderRadius: 4
+              }
+            ]
           },
           options: {
             responsive: true,
@@ -130,11 +189,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 backgroundColor: 'rgba(5, 8, 22, 0.9)',
                 titleColor: '#f8fafc',
                 bodyColor: '#f8fafc',
-                borderColor: 'rgba(16, 185, 129, 0.4)',
+                borderColor: 'rgba(255, 255, 255, 0.1)',
                 borderWidth: 1,
                 callbacks: {
                   label: function (context) {
-                    return context.parsed.y.toFixed(2).replace(/\./g, ',') + ' €';
+                    return context.dataset.label + ' : ' + context.parsed.y.toFixed(2).replace(/\./g, ',') + ' €';
                   }
                 }
               }
