@@ -316,10 +316,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 let existing = playersMap.get(key);
                 if (prof.avatar_url) existing.photo = prof.avatar_url;
             } else {
-                // Ajouter le membre comme nouveau joueur par défaut
+                // Ajouter le membre comme nouveau joueur par défaut (Amateur + Prestige)
                 playersMap.set(key, {
                     name: prof.full_name,
-                    categories: ['amateur'],
+                    categories: ['amateur', 'prestige'],
                     photo: prof.avatar_url || null
                 });
             }
@@ -434,7 +434,13 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const tousLesTournois = await getAllTournamentsFromDB();
             const tournoiEnCours = tousLesTournois.find(t => t.estArchive !== true && t.id);
-            if (!tournoiEnCours) return;
+            if (!tournoiEnCours) {
+                // Par défaut, pour un nouveau tournoi, on pré-coche tout le monde
+                joueursSelectionnes = getJoueursDisponiblesPourCategorie();
+                if (typeof rendreChecklistParticipants === 'function') rendreChecklistParticipants();
+                if (typeof rendreParticipantsSelectionnes === 'function') rendreParticipantsSelectionnes();
+                return;
+            }
 
             tournoiActuel = tournoiEnCours;
 
