@@ -203,7 +203,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // IMPORTANT : Attendre la restauration de la session pour que les requêtes sur profiles fonctionnent
-        await supabaseClient.auth.getSession();
+        try {
+            await supabaseClient.auth.getSession();
+        } catch(e) {
+            window.bcrDebug = `Erreur getSession: ${e.message}`;
+        }
 
         try {
             const { error } = await supabaseClient
@@ -213,11 +217,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (error) {
                 supabaseActive = false;
+                window.bcrDebug = `Erreur initDB app_settings: ${error.message}`;
                 console.error('Supabase joignable mais schéma non prêt ou accès refusé:', error.message);
                 return { mode: 'local' };
             }
         } catch (err) {
             supabaseActive = false;
+            window.bcrDebug = `Exception initDB: ${err.message}`;
             console.error('Supabase connection failed:', err);
             return { mode: 'local' };
         }
