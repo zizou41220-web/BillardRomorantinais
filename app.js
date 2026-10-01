@@ -624,7 +624,6 @@ function applyRoleAccessControl() {
         tr.innerHTML = `
           <td style="text-align: left; padding: 0.8rem 0.5rem;">
             <div style="font-weight: 600;">${drink.name}</div>
-            <div style="font-size: 0.8rem; color: var(--text-muted);">Stock: ${drink.stock !== null ? drink.stock : 'N/A'}</div>
           </td>
           <td style="padding: 0.8rem 0.5rem; text-align: center;">${drink.price.toFixed(2)}€</td>
           <td style="padding: 0.8rem 0.5rem; text-align: center;">
