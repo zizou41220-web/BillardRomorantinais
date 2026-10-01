@@ -652,6 +652,9 @@ function applyRoleAccessControl() {
   window.closeBuvetteModal = function() {
     const modal = document.getElementById('buvette-modal');
     if (modal) modal.classList.add('hidden');
+    
+    const commentInput = document.getElementById('buvette-comment');
+    if (commentInput) commentInput.value = '';
   };
 
   window.calculateBuvetteTotal = function() {
@@ -685,6 +688,14 @@ function applyRoleAccessControl() {
     const tbody = document.getElementById('buvette-drinks-list');
     if (!tbody) return;
 
+    const commentInput = document.getElementById('buvette-comment');
+    const commentValue = commentInput ? commentInput.value.trim() : '';
+
+    if (!commentValue) {
+      alert("Veuillez obligatoirement saisir un commentaire (ex: Soirée, Tournoi, Tournée...) avant de valider.");
+      return;
+    }
+
     const rows = tbody.querySelectorAll('tr');
     const itemsToInsert = [];
     
@@ -706,7 +717,7 @@ function applyRoleAccessControl() {
             member_id: currentUser.id,
             is_paid: true,
             paid_at: new Date().toISOString(),
-            paid_by_name: currentUser.full_name || currentUser.email
+            paid_by_name: (currentUser.full_name || currentUser.email) + " (Buvette : " + commentValue + ")"
           };
           itemsToInsert.push(itemPayload);
         }
