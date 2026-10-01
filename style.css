@@ -693,7 +693,7 @@ th {
     border-bottom: 2px solid var(--border);
     position: sticky;
     top: 0;
-    background: var(--panel);
+    background: #0a2540; /* Fond 100% opaque pour cacher le scroll */
     z-index: 10;
 }
 
