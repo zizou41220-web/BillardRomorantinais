@@ -1717,6 +1717,9 @@ async function loadAdminData() {
               <button class="btn btn-outline" title="${p.role === 'admin' ? 'Annuler pré-configuration admin' : 'Pré-configurer Admin'}" onclick="togglePendingAdminRole('${p.id}', '${p.role || 'member'}')">
                 <i data-lucide="${p.role === 'admin' ? 'shield-off' : 'shield'}" style="width: 16px; height: 16px;"></i>
               </button>
+              <button class="btn btn-outline" title="Modifier le membre" onclick="editPendingMember('${p.id}')">
+                <i data-lucide="pencil" style="width: 16px; height: 16px;"></i>
+              </button>
               <button class="btn btn-outline btn-danger" title="Supprimer l'import" onclick="deletePendingImport(${p.id})">
                 <i data-lucide="trash-2" size="16"></i>
               </button>
@@ -1977,85 +1980,7 @@ document.getElementById('manual-mem-email').addEventListener('blur', async () =>
 });
 
 // Modal Nouveau Membre
-document.getElementById('add-member-btn').addEventListener('click', async () => {
-  document.getElementById('manual-mem-name').value = '';
-  document.getElementById('manual-mem-email').value = '';
-  window.existingMemberRecord = null;
-
-  // Réinitialiser le titre par défaut du modal
-  const modalTitle = document.querySelector('#member-modal h3');
-  if (modalTitle) modalTitle.textContent = "Ajouter un Membre Manuellement";
-  show('member-modal');
-});
-
-document.getElementById('save-manual-member-btn').addEventListener('click', async () => {
-  const name = document.getElementById('manual-mem-name').value.trim();
-  const email = document.getElementById('manual-mem-email').value.trim().toLowerCase();
-  let avatarUrl = document.getElementById('manual-mem-avatar-url') ? document.getElementById('manual-mem-avatar-url').value : '';
-  const avatarFile = document.getElementById('manual-mem-avatar-file') ? document.getElementById('manual-mem-avatar-file').files[0] : null;
-  const canManageStock = document.getElementById('manual-mem-can-manage-stock') ? document.getElementById('manual-mem-can-manage-stock').checked : false;
-
-  if (!name || !email) return alert("Le nom et l'email sont requis.");
-
-  show('loading');
-
-  if (avatarFile) {
-    const uploadedUrl = await uploadToSupabase(avatarFile);
-    if (uploadedUrl) avatarUrl = uploadedUrl;
-  }
-
-  // Double-check de l'existence par précaution
-  const { data: existing } = await supabaseClient
-    .from('imported_members')
-    .select('*')
-    .eq('email', email)
-    .maybeSingle();
-
-  let isNew = !existing;
-
-  const record = {
-    full_name: name,
-    email: email
-  };
-
-  const { error } = await supabaseClient.from('imported_members').upsert(record, { onConflict: 'email' });
-
-  if (!error) {
-    const { data: profile } = await supabaseClient
-      .from('profiles')
-      .select('id')
-      .eq('email', email)
-      .maybeSingle();
-
-    if (profile) {
-      let profileUpdates = {};
-      if (typeof avatarUrl !== 'undefined' && (avatarUrl || avatarUrl === '')) {
-        profileUpdates.avatar_url = avatarUrl;
-      }
-      profileUpdates.can_manage_stock = canManageStock;
-
-      if (Object.keys(profileUpdates).length > 0) {
-        try {
-          await supabaseClient.from('profiles').update(profileUpdates).eq('id', profile.id);
-        } catch (err) {
-          console.warn("Erreur MAJ profile", err);
-        }
-      }
-    }
-  }
-
-  hide('loading');
-  if (error) alert("Erreur: " + error.message);
-  else {
-    if (isNew) {
-      alert("Nouveau membre pré-enregistré avec succès !");
-    } else {
-      alert("Profil mis à jour avec succès !");
-    }
-    closeModal('member-modal');
-    loadAdminData();
-  }
-});
+// Les listeners add-member-btn et save-manual-member-btn sont gérés dans admin.js pour éviter les conflits et inclure les abonnements.
 
 // --- CSV EXPORT (Consommations & Stocks) ---
 document.getElementById('export-stock-csv-btn')?.addEventListener('click', async () => {

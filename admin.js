@@ -114,6 +114,9 @@
               <button class="btn btn-outline" title="${p.role === 'admin' ? 'Annuler pré-configuration admin' : 'Pré-configurer Admin'}" onclick="togglePendingAdminRole('${p.id}', '${p.role || 'member'}')">
                 <i data-lucide="${p.role === 'admin' ? 'shield-off' : 'shield'}" style="width: 16px; height: 16px;"></i>
               </button>
+              <button class="btn btn-outline" title="Modifier le membre" onclick="editPendingMember('${p.id}')">
+                <i data-lucide="pencil" style="width: 16px; height: 16px;"></i>
+              </button>
               <button class="btn btn-outline btn-danger" title="Supprimer l'import" onclick="deletePendingImport(${p.id})">
                 <i data-lucide="trash-2" size="16"></i>
               </button>
@@ -190,6 +193,7 @@
 
     // Modal Nouveau Membre
     document.getElementById('add-member-btn').addEventListener('click', async () => {
+      window.editingPendingMemberId = null;
       const { data: types } = await supabaseClient.from('subscription_types').select('*');
       const select = document.getElementById('manual-mem-type');
       select.innerHTML = types.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
@@ -205,8 +209,35 @@
       nextYear.setFullYear(nextYear.getFullYear() + 1);
       document.getElementById('manual-mem-end-date').value = nextYear.toISOString().split('T')[0];
 
+      const modalTitle = document.querySelector('#member-modal h3');
+      if (modalTitle) modalTitle.textContent = "Ajouter un Membre Manuellement";
+
       show('member-modal');
     });
+
+    window.editPendingMember = async function(id) {
+      window.editingPendingMemberId = id;
+      show('loading');
+      
+      const { data: types } = await supabaseClient.from('subscription_types').select('*');
+      const select = document.getElementById('manual-mem-type');
+      select.innerHTML = types.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+
+      const { data: member } = await supabaseClient.from('imported_members').select('*').eq('id', id).maybeSingle();
+      hide('loading');
+      if (!member) return alert("Membre introuvable.");
+
+      document.getElementById('manual-mem-name').value = member.full_name || '';
+      document.getElementById('manual-mem-email').value = member.email || '';
+      if (document.getElementById('manual-mem-type')) document.getElementById('manual-mem-type').value = member.subscription_type_id || '';
+      if (document.getElementById('manual-mem-end-date')) document.getElementById('manual-mem-end-date').value = member.subscription_end_date || '';
+      if (document.getElementById('manual-mem-can-manage-stock')) document.getElementById('manual-mem-can-manage-stock').checked = member.can_manage_stock || false;
+
+      const modalTitle = document.querySelector('#member-modal h3');
+      if (modalTitle) modalTitle.textContent = "Modifier le Membre en Attente";
+
+      show('member-modal');
+    };
 
     document.getElementById('save-manual-member-btn').addEventListener('click', async () => {
       const name = document.getElementById('manual-mem-name').value;
@@ -227,15 +258,27 @@
       }
 
       // Enregistrer dans imported_members (staging) pour faire le lien avec le futur compte
-      const record = {
+      let record = {
         full_name: name,
         email: email,
         subscription_type_id: typeId,
         subscription_end_date: endDate,
-        subscription_start_date: new Date().toISOString().split('T')[0]
+        can_manage_stock: canManageStock
       };
+      
+      // On n'écrase pas la start_date si on est juste en train d'éditer
+      if (!window.editingPendingMemberId) {
+          record.subscription_start_date = new Date().toISOString().split('T')[0];
+      }
 
-      const { error } = await supabaseClient.from('imported_members').upsert(record, { onConflict: 'email' });
+      let error = null;
+      if (window.editingPendingMemberId) {
+          const res = await supabaseClient.from('imported_members').update(record).eq('id', window.editingPendingMemberId);
+          error = res.error;
+      } else {
+          const res = await supabaseClient.from('imported_members').upsert(record, { onConflict: 'email' });
+          error = res.error;
+      }
 
       if (!error) {
         // --- Synchronisation immédiate pour les membres déjà inscrits ---
@@ -248,6 +291,11 @@
         if (profile) {
           // Mise à jour de la photo de profil s'il y a un changement
           let profileUpdates = {};
+          if (typeof avatarUrl !== 'undefined' && (avatarUrl || avatarUrl === '')) {
+            profileUpdates.avatar_url = avatarUrl;
+          }
+          profileUpdates.can_manage_stock = canManageStock;
+          profileUpdates.full_name = name; // Mise à jour du nom aussi !
           if (avatarUrl || avatarUrl === '') {
               profileUpdates.avatar_url = avatarUrl;
           }
