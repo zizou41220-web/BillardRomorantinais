@@ -200,6 +200,8 @@
 
       document.getElementById('manual-mem-name').value = '';
       document.getElementById('manual-mem-email').value = '';
+      document.getElementById('manual-mem-email').removeAttribute('readonly');
+      document.getElementById('manual-mem-email').removeAttribute('title');
       if (document.getElementById('manual-mem-can-manage-stock')) {
           document.getElementById('manual-mem-can-manage-stock').checked = false;
       }
@@ -229,6 +231,8 @@
 
       document.getElementById('manual-mem-name').value = member.full_name || '';
       document.getElementById('manual-mem-email').value = member.email || '';
+      document.getElementById('manual-mem-email').removeAttribute('readonly');
+      document.getElementById('manual-mem-email').removeAttribute('title');
       if (document.getElementById('manual-mem-type')) document.getElementById('manual-mem-type').value = member.subscription_type_id || '';
       if (document.getElementById('manual-mem-end-date')) document.getElementById('manual-mem-end-date').value = member.subscription_end_date || '';
       if (document.getElementById('manual-mem-can-manage-stock')) document.getElementById('manual-mem-can-manage-stock').checked = member.can_manage_stock || false;

@@ -1642,7 +1642,7 @@ async function loadAdminData() {
               <div style="display:flex; flex-direction:column;">
                 <div style="display:flex; align-items:center; gap:6px;">
                   <span style="font-weight:600;">${m.full_name}</span>
-                  <button class="btn btn-outline" style="padding:2px 6px; font-size:0.75rem; border:none; background:transparent;" title="Modifier le pseudo" onclick="event.stopPropagation(); editMemberPseudo('${m.id}', '${safeName}')">
+                  <button class="btn btn-outline" style="padding:2px 6px; font-size:0.75rem; border:none; background:transparent;" title="Modifier le profil complet" onclick="event.stopPropagation(); editMemberPseudo('${m.id}', '${safeName}', '${safeEmail}')">
                     <i data-lucide="pencil" style="width:12px; height:12px;"></i>
                   </button>
                 </div>
@@ -1910,25 +1910,51 @@ window.togglePendingAdminRole = async function(id, currentRole) {
   }
 };
 
-async function editMemberPseudo(profileId, currentPseudo) {
-  const newPseudo = prompt("Modifier le pseudo du membre :", currentPseudo);
-  if (newPseudo === null) return;
-  const trimmed = newPseudo.trim();
-  if (!trimmed) return alert("Le pseudo ne peut pas être vide.");
-
+async function editMemberPseudo(profileId, currentPseudo, currentEmail) {
   show('loading');
-  const { error } = await supabaseClient
-    .from('profiles')
-    .update({ full_name: trimmed })
-    .eq('id', profileId);
+  
+  // On récupère les infos d'abonnement s'il y en a une
+  const { data: imported } = await supabaseClient.from('imported_members').select('*').eq('email', currentEmail).maybeSingle();
+  
+  // On récupère le profil complet (pour le can_manage_stock)
+  const { data: profile } = await supabaseClient.from('profiles').select('*').eq('id', profileId).single();
+  
+  const { data: types } = await supabaseClient.from('subscription_types').select('*');
+  const select = document.getElementById('manual-mem-type');
+  if (select && types) {
+      select.innerHTML = types.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+  }
 
   hide('loading');
-  if (error) {
-    alert("Erreur lors de la modification du pseudo : " + error.message);
+
+  // Remplir le modal
+  window.editingPendingMemberId = imported ? imported.id : null; // Si on l'a, on update direct
+  
+  document.getElementById('manual-mem-name').value = profile.full_name || currentPseudo;
+  document.getElementById('manual-mem-email').value = currentEmail || '';
+  
+  // Rendre l'email en lecture seule pour éviter les conflits d'auth
+  document.getElementById('manual-mem-email').setAttribute('readonly', 'true');
+  document.getElementById('manual-mem-email').title = "L'adresse email d'un compte inscrit ne peut pas être modifiée ici.";
+  
+  if (imported) {
+      if (document.getElementById('manual-mem-type')) document.getElementById('manual-mem-type').value = imported.subscription_type_id || '';
+      if (document.getElementById('manual-mem-end-date')) document.getElementById('manual-mem-end-date').value = imported.subscription_end_date || '';
   } else {
-    alert("Pseudo mis à jour avec succès !");
-    loadAdminData();
+      // Set default end date to +1 year
+      const nextYear = new Date();
+      nextYear.setFullYear(nextYear.getFullYear() + 1);
+      if (document.getElementById('manual-mem-end-date')) document.getElementById('manual-mem-end-date').value = nextYear.toISOString().split('T')[0];
   }
+  
+  if (document.getElementById('manual-mem-can-manage-stock')) {
+      document.getElementById('manual-mem-can-manage-stock').checked = profile.can_manage_stock || false;
+  }
+
+  const modalTitle = document.querySelector('#member-modal h3');
+  if (modalTitle) modalTitle.textContent = "Modifier le Membre Inscrit";
+
+  show('member-modal');
 }
 window.editMemberPseudo = editMemberPseudo;
 
