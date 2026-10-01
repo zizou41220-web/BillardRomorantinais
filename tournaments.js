@@ -333,6 +333,13 @@ document.addEventListener('DOMContentLoaded', () => {
         
         let allPlayers = Array.from(playersMap.values());
         allPlayers.sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
+
+        // Auto-guérison : Si la table publique 'players' a été effacée mais qu'on a pu reconstruire depuis les profils
+        if (tourneyPlayers && tourneyPlayers.length === 0 && allPlayers.length > 0) {
+            console.log("Base publique vide. Re-publication depuis les profils...");
+            saveRemotePlayers(allPlayers).catch(e => console.error("Erreur auto-heal:", e));
+        }
+
         return allPlayers;
     }
 
