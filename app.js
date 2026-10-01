@@ -2012,7 +2012,161 @@ document.getElementById('manual-mem-email').addEventListener('blur', async () =>
 });
 
 // Modal Nouveau Membre
-// Les listeners add-member-btn et save-manual-member-btn sont gérés dans admin.js pour éviter les conflits et inclure les abonnements.
+document.getElementById('add-member-btn').addEventListener('click', async () => {
+  window.editingPendingMemberId = null;
+  const { data: types } = await supabaseClient.from('subscription_types').select('*');
+  const select = document.getElementById('manual-mem-type');
+  if (select && types) {
+      select.innerHTML = types.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+  }
+
+  document.getElementById('manual-mem-name').value = '';
+  document.getElementById('manual-mem-email').value = '';
+  document.getElementById('manual-mem-email').removeAttribute('readonly');
+  document.getElementById('manual-mem-email').removeAttribute('title');
+  if (document.getElementById('manual-mem-can-manage-stock')) {
+      document.getElementById('manual-mem-can-manage-stock').checked = false;
+  }
+
+  // Set default end date to +1 year
+  const nextYear = new Date();
+  nextYear.setFullYear(nextYear.getFullYear() + 1);
+  if (document.getElementById('manual-mem-end-date')) {
+      document.getElementById('manual-mem-end-date').value = nextYear.toISOString().split('T')[0];
+  }
+
+  const modalTitle = document.querySelector('#member-modal h3');
+  if (modalTitle) modalTitle.textContent = "Ajouter un Membre Manuellement";
+
+  show('member-modal');
+});
+
+window.editPendingMember = async function(id) {
+  window.editingPendingMemberId = id;
+  show('loading');
+  
+  const { data: types } = await supabaseClient.from('subscription_types').select('*');
+  const select = document.getElementById('manual-mem-type');
+  if (select && types) {
+      select.innerHTML = types.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+  }
+
+  const { data: member } = await supabaseClient.from('imported_members').select('*').eq('id', id).maybeSingle();
+  hide('loading');
+  if (!member) return alert("Membre introuvable.");
+
+  document.getElementById('manual-mem-name').value = member.full_name || '';
+  document.getElementById('manual-mem-email').value = member.email || '';
+  document.getElementById('manual-mem-email').removeAttribute('readonly');
+  document.getElementById('manual-mem-email').removeAttribute('title');
+  if (document.getElementById('manual-mem-type')) document.getElementById('manual-mem-type').value = member.subscription_type_id || '';
+  if (document.getElementById('manual-mem-end-date')) document.getElementById('manual-mem-end-date').value = member.subscription_end_date || '';
+  if (document.getElementById('manual-mem-can-manage-stock')) document.getElementById('manual-mem-can-manage-stock').checked = member.can_manage_stock || false;
+
+  const modalTitle = document.querySelector('#member-modal h3');
+  if (modalTitle) modalTitle.textContent = "Modifier le Membre en Attente";
+
+  show('member-modal');
+};
+
+document.getElementById('save-manual-member-btn').addEventListener('click', async () => {
+  const name = document.getElementById('manual-mem-name').value;
+  const email = document.getElementById('manual-mem-email').value.trim().toLowerCase();
+  const typeId = document.getElementById('manual-mem-type') ? document.getElementById('manual-mem-type').value : null;
+  const endDate = document.getElementById('manual-mem-end-date') ? document.getElementById('manual-mem-end-date').value : null;
+  let avatarUrl = document.getElementById('manual-mem-avatar-url') ? document.getElementById('manual-mem-avatar-url').value : '';
+  const avatarFile = document.getElementById('manual-mem-avatar-file') ? document.getElementById('manual-mem-avatar-file').files[0] : null;
+  const canManageStock = document.getElementById('manual-mem-can-manage-stock') ? document.getElementById('manual-mem-can-manage-stock').checked : false;
+
+  if (!name || !email || (typeId !== null && !endDate)) return alert("Tous les champs (Nom, Email, Date) sont requis.");
+
+  show('loading');
+
+  if (avatarFile && typeof uploadToSupabase === 'function') {
+    const uploadedUrl = await uploadToSupabase(avatarFile);
+    if (uploadedUrl) avatarUrl = uploadedUrl;
+  }
+
+  let record = {
+    full_name: name,
+    email: email,
+    subscription_type_id: typeId,
+    subscription_end_date: endDate,
+    can_manage_stock: canManageStock
+  };
+  
+  if (typeof avatarUrl !== 'undefined' && avatarUrl !== '') {
+      record.avatar_url = avatarUrl;
+  }
+  
+  if (!window.editingPendingMemberId) {
+      record.subscription_start_date = new Date().toISOString().split('T')[0];
+  }
+
+  let error = null;
+  if (window.editingPendingMemberId) {
+      const res = await supabaseClient.from('imported_members').update(record).eq('id', window.editingPendingMemberId);
+      error = res.error;
+  } else {
+      const res = await supabaseClient.from('imported_members').upsert(record, { onConflict: 'email' });
+      error = res.error;
+  }
+
+  if (!error) {
+    const { data: profile } = await supabaseClient
+      .from('profiles')
+      .select('id')
+      .eq('email', email)
+      .maybeSingle();
+
+    if (profile) {
+      let profileUpdates = {};
+      if (typeof avatarUrl !== 'undefined' && (avatarUrl || avatarUrl === '')) {
+        profileUpdates.avatar_url = avatarUrl;
+      }
+      profileUpdates.can_manage_stock = canManageStock;
+      profileUpdates.full_name = name;
+      
+      if (Object.keys(profileUpdates).length > 0) {
+         try {
+             await supabaseClient.from('profiles').update(profileUpdates).eq('id', profile.id);
+         } catch(err) {
+             console.warn("Erreur MAJ profile", err);
+         }
+      }
+
+      const { data: subs } = await supabaseClient
+        .from('subscriptions')
+        .select('*')
+        .eq('member_id', profile.id)
+        .order('end_date', { ascending: false })
+        .limit(1);
+
+      const latestSub = subs && subs.length > 0 ? subs[0] : null;
+
+      if (!latestSub || latestSub.type_id !== typeId || latestSub.end_date !== endDate) {
+        if (latestSub && latestSub.type_id === typeId) {
+          await supabaseClient.from('subscriptions').update({ end_date: endDate }).eq('id', latestSub.id);
+        } else {
+          await supabaseClient.from('subscriptions').insert({
+            member_id: profile.id,
+            type_id: typeId,
+            start_date: record.subscription_start_date || new Date().toISOString().split('T')[0],
+            end_date: endDate
+          });
+        }
+      }
+    }
+  }
+
+  hide('loading');
+  if (error) alert("Erreur: " + error.message);
+  else {
+    alert("Opération effectuée avec succès !");
+    closeModal('member-modal');
+    if (typeof loadAdminData === 'function') loadAdminData();
+  }
+});
 
 // --- CSV EXPORT (Consommations & Stocks) ---
 document.getElementById('export-stock-csv-btn')?.addEventListener('click', async () => {
