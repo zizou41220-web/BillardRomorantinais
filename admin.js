@@ -266,6 +266,10 @@
         can_manage_stock: canManageStock
       };
       
+      if (typeof avatarUrl !== 'undefined' && avatarUrl !== '') {
+          record.avatar_url = avatarUrl;
+      }
+      
       // On n'écrase pas la start_date si on est juste en train d'éditer
       if (!window.editingPendingMemberId) {
           record.subscription_start_date = new Date().toISOString().split('T')[0];

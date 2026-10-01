@@ -480,15 +480,21 @@ async function initAuth() {
             try {
               const userRole = isFirstUser ? 'admin' : (importedMember && importedMember.role === 'admin' ? 'admin' : 'member');
               const userStock = importedMember && importedMember.can_manage_stock === true;
-              await supabaseClient
-                .from('profiles')
-                .upsert({
+              
+              let profileData = {
                   id: data.user.id,
                   email: email,
                   full_name: pseudo,
                   role: userRole,
                   can_manage_stock: userStock
-                });
+              };
+              if (importedMember && importedMember.avatar_url) {
+                  profileData.avatar_url = importedMember.avatar_url;
+              }
+
+              await supabaseClient
+                .from('profiles')
+                .upsert(profileData);
             } catch (err) {
             console.warn("Échec de l'upsert direct du profil (géré par trigger Supabase) :", err);
           }
