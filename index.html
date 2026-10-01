@@ -8,6 +8,19 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>Portail Club - Billard Blackball Romorantinais</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#050816">
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').then(reg => {
+          console.log('ServiceWorker enregistré:', reg.scope);
+        }).catch(err => {
+          console.log('Erreur ServiceWorker:', err);
+        });
+      });
+    }
+  </script>
   <link rel="stylesheet" href="style.css?v=2.3.2">
   <link rel="stylesheet" href="tournament_hero.css">
   <style>

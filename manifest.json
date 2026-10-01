@@ -1,0 +1,22 @@
+{
+  "name": "Billard Club Romorantinais",
+  "short_name": "Billard Romo",
+  "id": "/billard-romo-app/",
+  "start_url": "./?source=pwa",
+  "display": "standalone",
+  "background_color": "#050816",
+  "theme_color": "#915eff",
+  "description": "Application de gestion pour le Billard Club Romorantinais",
+  "icons": [
+    {
+      "src": "Logo.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg"
+    },
+    {
+      "src": "Logo.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg"
+    }
+  ]
+}
