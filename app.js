@@ -1356,16 +1356,6 @@ async function logConsumption(id, name, price) {
   document.getElementById('drink-confirm-qty').textContent = '1';
   document.getElementById('drink-confirm-total').textContent = `${price.toFixed(2)}€`;
 
-  const stockEl = document.getElementById('drink-confirm-stock');
-  if (stockEl) {
-    if (drink && drink.stock !== null && drink.stock !== undefined) {
-      stockEl.textContent = `Stock restant : ${drink.stock}`;
-      stockEl.style.color = drink.stock <= 0 ? '#ef4444' : 'var(--text-muted)';
-    } else {
-      stockEl.textContent = '';
-    }
-  }
-
   const imgContainer = document.getElementById('drink-confirm-image-container');
   if (drink && drink.image_url) {
     imgContainer.innerHTML = `<img src="${drink.image_url}" alt="${name}" style="width:64px; height:64px; object-fit:contain; border-radius:8px;">`;
