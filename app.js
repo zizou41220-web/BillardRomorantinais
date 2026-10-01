@@ -177,10 +177,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 beginAtZero: true,
                 ticks: {
                   callback: function (value) { return value + ' €'; },
-                  color: textColor
+                  color: '#10b981'
                 },
                 grid: { color: gridColor },
-                title: { display: true, text: 'Mensuel', color: textColor, font: { size: 10 } }
+                title: { display: true, text: 'Mensuel', color: '#10b981', font: { size: 10 } }
               },
               y1: {
                 type: 'linear',
