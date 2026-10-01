@@ -289,20 +289,22 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!supabaseActive || !supabaseClient) return [];
         
         // 1. Récupérer les joueurs du tournoi existants
-        const { data: tourneyPlayers } = await supabaseClient
+        const { data: tourneyPlayers, error: err1 } = await supabaseClient
             .from('players')
             .select('name, categories, photo');
             
         // 2. Récupérer tous les membres/admins de l'application
-        const { data: profiles } = await supabaseClient
+        const { data: profiles, error: err2 } = await supabaseClient
             .from('profiles')
             .select('full_name, avatar_url');
 
         // 3. Récupérer les membres pré-enregistrés (en attente)
-        const { data: imported } = await supabaseClient
+        const { data: imported, error: err3 } = await supabaseClient
             .from('imported_members')
             .select('full_name, avatar_url');
             
+        window.bcrDebug = `p:${tourneyPlayers?.length || err1?.message || 'null'} prof:${profiles?.length || err2?.message || 'null'} imp:${imported?.length || err3?.message || 'null'}`;
+        
         let playersMap = new Map();
         
         if (tourneyPlayers) {
@@ -1328,7 +1330,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const categorieLabel = getCategorieTournoiSelectionnee() === 'mixte' ? 'Mixte' : (getCategorieTournoiSelectionnee() === 'prestige' ? 'Prestige' : 'Amateur');
 
         if (!joueurs.length) {
-            playersChecklistEl.innerHTML = '<span class="help">Aucun joueur en base. Active le mode admin pour en ajouter.</span>';
+            let debugMsg = window.bcrDebug || "Pas d'info debug";
+            playersChecklistEl.innerHTML = `<span class="help">Aucun joueur en base. Active le mode admin pour en ajouter. <br/><small style="color:red;">[Debug: ${debugMsg}]</small></span>`;
             playersChecklistEl.classList.remove('locked');
             validateSelectionBtn.classList.remove('hidden');
             editSelectionBtn.classList.add('hidden');
