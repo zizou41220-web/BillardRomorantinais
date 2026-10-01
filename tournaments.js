@@ -284,12 +284,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function getRemotePlayers() {
         if (!supabaseActive || !supabaseClient) return [];
-        const { data, error } = await supabaseClient
+        
+        // 1. Récupérer les joueurs du tournoi existants
+        const { data: tourneyPlayers } = await supabaseClient
             .from('players')
-            .select('name, categories, photo')
-            .order('name', { ascending: true });
-        if (error) throw error;
-        return Array.isArray(data) ? data : [];
+            .select('name, categories, photo');
+            
+        // 2. Récupérer tous les membres/admins de l'application
+        const { data: profiles } = await supabaseClient
+            .from('profiles')
+            .select('full_name, avatar_url');
+            
+        let playersMap = new Map();
+        
+        if (tourneyPlayers) {
+            tourneyPlayers.forEach(p => {
+                if (p.name) playersMap.set(p.name.trim().toLowerCase(), p);
+            });
+        }
+        
+        if (profiles) {
+            profiles.forEach(prof => {
+                if (!prof.full_name) return;
+                const key = prof.full_name.trim().toLowerCase();
+                if (playersMap.has(key)) {
+                    // Mettre à jour la photo si le profil en a une
+                    let existing = playersMap.get(key);
+                    if (prof.avatar_url) existing.photo = prof.avatar_url;
+                } else {
+                    // Ajouter le membre comme nouveau joueur par défaut
+                    playersMap.set(key, {
+                        name: prof.full_name,
+                        categories: ['amateur'],
+                        photo: prof.avatar_url || null
+                    });
+                }
+            });
+        }
+        
+        let allPlayers = Array.from(playersMap.values());
+        allPlayers.sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
+        return allPlayers;
     }
 
     async function saveRemotePlayers(playersList) {
