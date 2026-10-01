@@ -202,6 +202,9 @@ document.addEventListener('DOMContentLoaded', () => {
             window.supabaseClient = supabaseClient;
         }
 
+        // IMPORTANT : Attendre la restauration de la session pour que les requêtes sur profiles fonctionnent
+        await supabaseClient.auth.getSession();
+
         try {
             const { error } = await supabaseClient
                 .from('app_settings')
@@ -344,13 +347,16 @@ document.addEventListener('DOMContentLoaded', () => {
             }))
             .filter((joueur) => joueur.name);
 
+        if (!payload.length) {
+            console.warn("Tentative de sauvegarde d'une liste vide annulée pour protéger la base de données.");
+            return;
+        }
+
         const { error: deleteError } = await supabaseClient
             .from('players')
             .delete()
             .neq('name', '');
         if (deleteError) throw deleteError;
-
-        if (!payload.length) return;
 
         const { error: insertError } = await supabaseClient
             .from('players')
