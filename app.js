@@ -443,48 +443,53 @@ async function initAuth() {
       // Vérification que le membre est bien "en attente d'inscription"
       const { count: profileCount } = await supabaseClient.from('profiles').select('*', { count: 'exact', head: true });
       const isFirstUser = profileCount === 0;
+      let importedMember = null;
 
-      if (!isFirstUser) {
-        const { data: importedMember, error: importCheckError } = await supabaseClient
-          .from('imported_members')
-          .select('email')
-          .eq('email', email.trim().toLowerCase())
-          .maybeSingle();
+        if (!isFirstUser) {
+          const { data: importData, error: importCheckError } = await supabaseClient
+            .from('imported_members')
+            .select('*')
+            .eq('email', email.trim().toLowerCase())
+            .maybeSingle();
+          importedMember = importData;
 
-        if (importCheckError) {
-          toggleLoading(false);
-          return alert("Erreur lors de la vérification de votre éligibilité : " + importCheckError.message);
-        }
+          if (importCheckError) {
+            toggleLoading(false);
+            return alert("Erreur lors de la vérification de votre éligibilité : " + importCheckError.message);
+          }
 
-        if (!importedMember) {
-          toggleLoading(false);
-          return alert("Création de compte refusée : Votre e-mail n'est pas en attente d'inscription dans la liste des membres. Veuillez demander à un administrateur de vous ajouter au préalable.");
-        }
-      }
-
-      const { data, error } = await supabaseClient.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: pseudo
+          if (!importedMember) {
+            toggleLoading(false);
+            return alert("Création de compte refusée : Votre e-mail n'est pas en attente d'inscription dans la liste des membres. Veuillez demander à un administrateur de vous ajouter au préalable.");
           }
         }
-      });
-      if (error) {
-        alert("Erreur d'inscription : " + error.message);
-      } else {
-        if (data?.user) {
-          try {
-            await supabaseClient
-              .from('profiles')
-              .upsert({
-                id: data.user.id,
-                email: email,
-                full_name: pseudo,
-                role: isFirstUser ? 'admin' : 'member'
-              });
-          } catch (err) {
+
+        const { data, error } = await supabaseClient.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              full_name: pseudo
+            }
+          }
+        });
+        if (error) {
+          alert("Erreur d'inscription : " + error.message);
+        } else {
+          if (data?.user) {
+            try {
+              const userRole = isFirstUser ? 'admin' : (importedMember && importedMember.role === 'admin' ? 'admin' : 'member');
+              const userStock = importedMember && importedMember.can_manage_stock === true;
+              await supabaseClient
+                .from('profiles')
+                .upsert({
+                  id: data.user.id,
+                  email: email,
+                  full_name: pseudo,
+                  role: userRole,
+                  can_manage_stock: userStock
+                });
+            } catch (err) {
             console.warn("Échec de l'upsert direct du profil (géré par trigger Supabase) :", err);
           }
         }
@@ -1704,9 +1709,18 @@ async function loadAdminData() {
           </td>
           <td>0.00€</td>
           <td>
-            <button class="btn btn-outline btn-danger" title="Supprimer l'import" onclick="deletePendingImport(${p.id})">
-              <i data-lucide="trash-2" size="16"></i>
-            </button>
+            <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+              <label style="font-size: 0.7rem; display: flex; align-items: center; gap: 0.2rem; cursor: pointer;" title="Accès gestion des stocks et réception de l'email hebdo">
+                <input type="checkbox" onchange="togglePendingStockRights('${p.id}', this.checked)" ${p.can_manage_stock ? 'checked' : ''}>
+                Gère Stocks
+              </label>
+              <button class="btn btn-outline" title="${p.role === 'admin' ? 'Annuler pré-configuration admin' : 'Pré-configurer Admin'}" onclick="togglePendingAdminRole('${p.id}', '${p.role || 'member'}')">
+                <i data-lucide="${p.role === 'admin' ? 'shield-off' : 'shield'}" style="width: 16px; height: 16px;"></i>
+              </button>
+              <button class="btn btn-outline btn-danger" title="Supprimer l'import" onclick="deletePendingImport(${p.id})">
+                <i data-lucide="trash-2" size="16"></i>
+              </button>
+            </div>
           </td>
         `;
     body.appendChild(row);
@@ -1858,6 +1872,34 @@ async function toggleAdminRole(profileId, currentRole) {
     loadAdminData();
   }
 }
+
+window.togglePendingStockRights = async function(id, checked) {
+  show('loading');
+  const { error } = await supabaseClient.from('imported_members').update({ can_manage_stock: checked }).eq('id', id);
+  hide('loading');
+  if (error) alert("Erreur: " + error.message + "\n\nAstuce: Avez-vous bien ajouté la colonne 'can_manage_stock' (booléen) dans la table 'imported_members' sur Supabase ?");
+  else loadAdminData();
+};
+
+window.togglePendingAdminRole = async function(id, currentRole) {
+  const newRole = currentRole === 'admin' ? 'member' : 'admin';
+  const actionText = newRole === 'admin' ? 'pré-configurer ce membre comme Administrateur' : 'annuler la pré-configuration Administrateur';
+
+  if (!confirm(`Voulez-vous vraiment ${actionText} ?`)) return;
+
+  show('loading');
+  const { error } = await supabaseClient
+    .from('imported_members')
+    .update({ role: newRole })
+    .eq('id', id);
+
+  hide('loading');
+  if (error) alert("Erreur: " + error.message + "\n\nAstuce: Avez-vous bien ajouté la colonne 'role' (texte, valeur par défaut 'member') dans la table 'imported_members' sur Supabase ?");
+  else {
+    alert("Rôle pré-configuré avec succès !");
+    loadAdminData();
+  }
+};
 
 async function editMemberPseudo(profileId, currentPseudo) {
   const newPseudo = prompt("Modifier le pseudo du membre :", currentPseudo);

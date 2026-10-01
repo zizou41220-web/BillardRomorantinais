@@ -106,9 +106,18 @@
           </td>
           <td>0.00€</td>
           <td>
-            <button class="btn btn-outline btn-danger" title="Supprimer l'import" onclick="deletePendingImport(${p.id})">
-              <i data-lucide="trash-2" size="16"></i>
-            </button>
+            <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+              <label style="font-size: 0.7rem; display: flex; align-items: center; gap: 0.2rem; cursor: pointer;" title="Accès gestion des stocks et réception de l'email hebdo">
+                <input type="checkbox" onchange="togglePendingStockRights('${p.id}', this.checked)" ${p.can_manage_stock ? 'checked' : ''}>
+                Gère Stocks
+              </label>
+              <button class="btn btn-outline" title="${p.role === 'admin' ? 'Annuler pré-configuration admin' : 'Pré-configurer Admin'}" onclick="togglePendingAdminRole('${p.id}', '${p.role || 'member'}')">
+                <i data-lucide="${p.role === 'admin' ? 'shield-off' : 'shield'}" style="width: 16px; height: 16px;"></i>
+              </button>
+              <button class="btn btn-outline btn-danger" title="Supprimer l'import" onclick="deletePendingImport(${p.id})">
+                <i data-lucide="trash-2" size="16"></i>
+              </button>
+            </div>
           </td>
         `;
         body.appendChild(row);
