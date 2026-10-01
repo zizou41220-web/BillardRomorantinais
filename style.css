@@ -1534,9 +1534,10 @@ td {
 
 th {
     color: var(--muted);
-    background: rgba(0, 0, 0, 0.03);
+    background: #0a2540;
     position: sticky;
     top: 0;
+    z-index: 10;
 }
 
 .txt-muted {
