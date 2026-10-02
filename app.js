@@ -2263,7 +2263,7 @@ async function clearMemberBalance(memberId) {
     .from('consumptions')
     .update(payload)
     .eq('member_id', memberId)
-    .eq('is_paid', false);
+    .or('is_paid.eq.false,is_paid.is.null');
 
   hide('loading');
   if (error) {
