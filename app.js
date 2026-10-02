@@ -998,7 +998,11 @@ function initNavigation() {
   adminTabs.forEach(tab => {
     tab.addEventListener('click', () => {
       const paneId = tab.getAttribute('data-tab');
-      document.querySelectorAll('.btn-tab').forEach(t => t.classList.remove('active'));
+      if (!paneId) return; // Ignorer si ce n'est pas un onglet principal (ex: onglets dans les modales)
+      
+      document.querySelectorAll('.btn-tab').forEach(t => {
+        if (t.hasAttribute('data-tab')) t.classList.remove('active');
+      });
       document.querySelectorAll('.admin-pane').forEach(p => p.classList.remove('active'));
       tab.classList.add('active');
       document.getElementById(paneId).classList.add('active');
