@@ -280,54 +280,10 @@ document.addEventListener('DOMContentLoaded', () => {
             .from('players')
             .select('name, categories, photo');
             
-        // 2. Récupérer tous les membres/admins de l'application
-        const { data: profiles, error: err2 } = await supabaseClient
-            .from('profiles')
-            .select('full_name, avatar_url');
-
-        // 3. Récupérer les membres pré-enregistrés (en attente)
-        const { data: imported, error: err3 } = await supabaseClient
-            .from('imported_members')
-            .select('full_name, avatar_url');
-            
-        window.bcrDebug = `p:${tourneyPlayers?.length || err1?.message || 'null'} prof:${profiles?.length || err2?.message || 'null'} imp:${imported?.length || err3?.message || 'null'}`;
+        if (err1) console.error("Erreur récupération joueurs:", err1);
         
-        let playersMap = new Map();
-        
-        if (tourneyPlayers) {
-            tourneyPlayers.forEach(p => {
-                if (p.name) playersMap.set(p.name.trim().toLowerCase(), p);
-            });
-        }
-
-        const processMember = (prof) => {
-            if (!prof.full_name) return;
-            const key = prof.full_name.trim().toLowerCase();
-            if (playersMap.has(key)) {
-                // Mettre à jour la photo si le profil en a une
-                let existing = playersMap.get(key);
-                if (prof.avatar_url) existing.photo = prof.avatar_url;
-            } else {
-                // Ajouter le membre comme nouveau joueur par défaut (Amateur + Prestige)
-                playersMap.set(key, {
-                    name: prof.full_name,
-                    categories: ['amateur', 'prestige'],
-                    photo: prof.avatar_url || null
-                });
-            }
-        };
-        
-        if (profiles) profiles.forEach(processMember);
-        if (imported) imported.forEach(processMember);
-        
-        let allPlayers = Array.from(playersMap.values());
+        let allPlayers = tourneyPlayers || [];
         allPlayers.sort((a, b) => a.name.localeCompare(b.name, 'fr', { sensitivity: 'base' }));
-
-        // Auto-guérison : Si la table publique 'players' a été effacée mais qu'on a pu reconstruire depuis les profils
-        if (tourneyPlayers && tourneyPlayers.length === 0 && allPlayers.length > 0) {
-            console.log("Base publique vide. Re-publication depuis les profils...");
-            saveRemotePlayers(allPlayers).catch(e => console.error("Erreur auto-heal:", e));
-        }
 
         return allPlayers;
     }
@@ -344,7 +300,9 @@ document.addEventListener('DOMContentLoaded', () => {
             .filter((joueur) => joueur.name);
 
         if (!payload.length) {
-            console.warn("Tentative de sauvegarde d'une liste vide annulée pour protéger la base de données.");
+            console.warn("Sauvegarde d'une liste vide : effacement de tous les joueurs sur Supabase.");
+            const { error: emptyDeleteError } = await supabaseClient.from('players').delete().neq('name', '');
+            if (emptyDeleteError) throw emptyDeleteError;
             return;
         }
 
@@ -1286,9 +1244,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function reinitialiserCategoriesNouveauJoueur() {
+        const saved = localStorage.getItem('tournoi_default_categories');
+        if (saved) {
+            try {
+                const prefs = JSON.parse(saved);
+                if (newPlayerAmateurEl) newPlayerAmateurEl.checked = prefs.amateur ?? true;
+                if (newPlayerPrestigeEl) newPlayerPrestigeEl.checked = prefs.prestige ?? true;
+                if (newPlayerGuestEl) newPlayerGuestEl.checked = prefs.invite ?? false;
+                return;
+            } catch (e) {}
+        }
         if (newPlayerAmateurEl) newPlayerAmateurEl.checked = true;
         if (newPlayerPrestigeEl) newPlayerPrestigeEl.checked = true;
         if (newPlayerGuestEl) newPlayerGuestEl.checked = false;
+    }
+
+    function sauvegarderCategoriesParDefaut() {
+        localStorage.setItem('tournoi_default_categories', JSON.stringify({
+            amateur: newPlayerAmateurEl?.checked ?? true,
+            prestige: newPlayerPrestigeEl?.checked ?? true,
+            invite: newPlayerGuestEl?.checked ?? false
+        }));
     }
 
     function synchroniserSelectionCategorie() {
@@ -1475,6 +1451,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         saveRemotePlayers(joueurs).catch((error) => {
             console.error('Sauvegarde joueurs Supabase impossible:', error.message);
+            if (isAdmin) alert('Erreur lors de la sauvegarde sur la base de données : ' + error.message);
         });
     }
 
@@ -4587,6 +4564,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     addPlayerBtn.addEventListener('click', ajouterJoueur);
+    if (newPlayerAmateurEl) newPlayerAmateurEl.addEventListener('change', sauvegarderCategoriesParDefaut);
+    if (newPlayerPrestigeEl) newPlayerPrestigeEl.addEventListener('change', sauvegarderCategoriesParDefaut);
+    if (newPlayerGuestEl) newPlayerGuestEl.addEventListener('change', sauvegarderCategoriesParDefaut);
+    reinitialiserCategoriesNouveauJoueur();
     adminLogoutBtn.addEventListener('click', quitterModeAdmin);
     validateSelectionBtn.addEventListener('click', validerSelectionParticipants);
     editSelectionBtn.addEventListener('click', modifierSelectionParticipants);
