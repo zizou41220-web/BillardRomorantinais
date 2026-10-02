@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bcr-cache-v20';
+const CACHE_NAME = 'bcr-cache-v21';
 const urlsToCache = [
   './',
   './index.html',
@@ -13,6 +13,22 @@ self.addEventListener('install', event => {
       .then(cache => {
         return cache.addAll(urlsToCache);
       })
+  );
+  // Force update
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(cacheNames => {
+      return Promise.all(
+        cacheNames.map(cacheName => {
+          if (cacheName !== CACHE_NAME) {
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    }).then(() => self.clients.claim())
   );
 });
 
