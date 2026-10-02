@@ -1,0 +1,59 @@
+# Guide d'utilisation - Administrateurs du Billard Club Romorantinais
+
+Ce guide est destiné aux membres du bureau et administrateurs de l'application. En tant qu'administrateur, vous avez accès à des onglets supplémentaires pour gérer l'intégralité du club.
+
+## 1. Gestion des Membres et Ardoises
+L'onglet Administration est votre centre de contrôle.
+
+(Insérer capture d'écran de la liste des membres ici)
+
+### Autoriser un nouveau membre à s'inscrire
+Pour des raisons de sécurité, personne ne peut créer de compte sans votre accord.
+1. Allez dans l'onglet Administration.
+2. Cliquez sur le bouton "Importer des Membres".
+3. Tapez l'adresse e-mail de la personne et cliquez sur Ajouter.
+
+### Remettre une ardoise à zéro (Le membre a payé)
+Lorsqu'un membre vous règle son ardoise :
+1. Cherchez le membre dans la Liste des Membres & Ardoises.
+2. Cliquez sur le bouton bleu (icône CB) à côté de son nom.
+3. Le montant total de son ardoise est remboursé et repasse à zéro instantanément.
+
+## 2. La Buvette (Le compte principal)
+En tant qu'administrateur principal, vous avez accès au bouton "BUVETTE" en haut à droite.
+
+Ce bouton sert lorsque vous tenez le bar pendant un tournoi ou une soirée :
+1. Cliquez sur BUVETTE.
+2. Ajoutez des quantités (+1, +2) pour ce que le client commande.
+3. Cliquez sur Valider la commande.
+4. Les stocks sont automatiquement déduits, et le Chiffre d'Affaires enregistré !
+
+## 3. Gestion des Stocks et des Articles
+Dans l'onglet Administration, descendez jusqu'à la section Gestion des Stocks.
+
+- Ajouter un article : Donnez-lui un nom, un prix de vente, et le stock actuel.
+- Modifier : Cliquez sur le crayon à côté d'un article pour changer son prix ou remettre le stock à jour.
+- Alertes de stock : Si le stock descend en dessous de 10 unités, vous recevrez un e-mail automatique le dimanche.
+
+## 4. Gérer un Tournoi
+L'onglet Tournois est conçu pour les vendredis soirs !
+
+(Insérer capture d'écran du panneau des tournois ici)
+
+### Créer le tournoi
+1. Cliquez sur "Nouveau Tournoi".
+2. Cochez tous les joueurs présents et ajoutez-les.
+3. Cliquez sur Lancer les Poules.
+
+### Entrer les scores
+1. Cliquez sur une poule, entrez les scores et cliquez sur Sauvegarder.
+2. Le classement se met à jour automatiquement.
+
+### Phases Finales
+1. Générez les 1/2 finales ou 1/4 de finales.
+2. Saisissez les scores jusqu'à la Finale.
+3. Cliquez sur l'icône "Appareil Photo" pour générer une belle image du classement.
+
+## 5. Suivre les Statistiques
+- Évolution des Ventes : Choisissez la saison sportive. Les barres représentent ce que vous avez vendu chaque mois. La ligne indique votre cagnotte cumulée.
+- Ventes par Article : Pour voir quelles boissons se vendent le plus chaque mois.

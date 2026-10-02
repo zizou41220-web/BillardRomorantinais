@@ -1,0 +1,50 @@
+# Guide d'utilisation - Membres du Billard Club Romorantinais
+
+Bienvenue sur l'application officielle du Billard Club Romorantinais !
+Ce guide rapide vous explique comment installer l'application sur votre smartphone, créer votre compte et suivre vos consommations.
+
+## 1. Installer l'application sur votre smartphone
+
+Pour avoir l'application toujours à portée de main (comme une vraie appli avec son icône sur votre écran d'accueil), suivez ces étapes :
+
+(Insérer capture d'écran du menu Chrome / Safari ici)
+
+### Sur un téléphone Android (Samsung, Xiaomi, etc.) :
+1. Ouvrez l'application Google Chrome.
+2. Allez sur l'adresse suivante : https://tessiers.github.io/BillardRomorantinais-Prod/
+3. Appuyez sur les 3 petits points en haut à droite de Chrome.
+4. Sélectionnez "Installer l'application" (ou "Ajouter à l'écran d'accueil").
+5. Une icône "Billard Romo" apparaîtra sur l'écran d'accueil de votre téléphone !
+
+### Sur un iPhone (iOS) :
+1. Ouvrez l'application Safari.
+2. Allez sur l'adresse suivante : https://tessiers.github.io/BillardRomorantinais-Prod/
+3. Appuyez sur le bouton "Partager" en bas de l'écran (le petit carré avec une flèche).
+4. Faites défiler vers le bas et sélectionnez "Sur l'écran d'accueil".
+5. Cliquez sur "Ajouter". L'icône est maintenant sur votre téléphone.
+
+## 2. Créer son compte et se connecter
+
+Avant de pouvoir vous connecter, assurez-vous qu'un administrateur a bien ajouté votre adresse e-mail dans le système. C'est une sécurité pour éviter que des inconnus ne créent des comptes.
+
+(Insérer capture d'écran de la page de connexion ici)
+
+1. Ouvrez l'application depuis votre téléphone.
+2. Sur la page de connexion, cliquez sur le bouton "Pas encore de compte ? S'inscrire".
+3. Remplissez les 3 champs : Votre Prénom/Nom, Votre Adresse E-mail, Un Mot de passe.
+4. Cliquez sur Créer un compte.
+5. Si tout est bon, vous pourrez immédiatement vous connecter !
+
+## 3. Utiliser l'application (Votre Tableau de Bord)
+
+Une fois connecté, vous arrivez sur l'onglet Accueil. C'est votre tableau de bord personnel.
+
+(Insérer capture d'écran du tableau de bord ici)
+
+- Votre Ardoise : En haut de l'écran, vous verrez le montant actuel de votre ardoise. S'il est à 0.00, tout va bien !
+- Historique : En dessous, vous trouverez la liste complète de vos consommations passées.
+
+## 4. Déconnexion automatique (Sécurité)
+
+Attention : Si vous utilisez la tablette commune du club posée sur le bar, l'application se verrouillera toute seule après 45 secondes d'inactivité. Vous devrez simplement retaper votre mot de passe pour la déverrouiller.
+Si vous êtes sur votre smartphone personnel, vous n'aurez pas ce verrouillage.
