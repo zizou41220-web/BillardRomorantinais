@@ -1473,6 +1473,8 @@ document.getElementById('save-stock-btn')?.addEventListener('click', async () =>
   if (error) {
     alert("Erreur lors de la mise à jour du stock : " + error.message);
   } else {
+    // Met à jour la variable locale pour que l'affichage soit correct sans rafraîchir
+    drink.stock = newStock;
     document.getElementById('stock-modal').classList.add('hidden');
     loadAdminData();
   }
