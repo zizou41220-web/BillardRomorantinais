@@ -4590,6 +4590,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (repartitionPoulesEl) {
         repartitionPoulesEl.addEventListener('change', () => synchroniserInfosPoules('nb'));
     }
+    
+    if (regleConditionEl) {
+        regleConditionEl.addEventListener('change', (e) => {
+            if (e.target.value === 'total') {
+                alert("Vous avez choisi 'Nb total de manches'.\n\nLes joueurs devront jouer exactement ce nombre de manches, peu importe qui gagne.\n(Ex: sur 3 manches, le score peut être 3-0, 2-1, 1-2 ou 0-3)");
+            } else if (e.target.value === 'gagnantes') {
+                alert("Vous avez choisi 'Manches gagnantes' (Race to).\n\nLe premier joueur à atteindre ce nombre de manches remporte la rencontre.");
+            }
+        });
+    }
+
     tournoiCategorieEl.addEventListener('change', () => {
         if (tournoiCategorieEl.value === 'mixte') {
             if (regleNombreWrapEl) regleNombreWrapEl.classList.add('hidden');

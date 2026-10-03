@@ -209,7 +209,7 @@
           <i data-lucide="log-out" style="width: 14px; height: 14px;"></i> Se déconnecter
         </button>
         <div style="text-align: center; margin-top: 1rem; font-size: 0.75rem; color: rgba(255, 255, 255, 0.3);">
-          v2.5.9
+          v2.6.0
         </div>
       </div>
     </nav>
@@ -476,7 +476,8 @@
                     <div>
                       <label for="regle-condition" class="help" style="margin-bottom: 4px;">Condition de
                         victoire</label>
-                      <select id="regle-condition" class="chakra-select">
+                      <select id="regle-condition" class="chakra-select" required>
+                        <option value="" disabled selected>-- Sélectionnez --</option>
                         <option value="total">Nb total de manches</option>
                         <option value="gagnantes">Manches gagnantes</option>
                       </select>
