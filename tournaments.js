@@ -1018,7 +1018,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Si condition = 'total'
-        const total = settings.nombre; // En mode total, on utilise le réglage brut, le handicap par type de joueur n'a pas de sens.
+        // En mode mixte, le champ settings.nombre est masqué. Le total se base sur les objectifs.
+        // Si les objectifs sont différents (ex: handicap Ama vs Pre), on prend la plus grande valeur.
+        const total = settings.isMixte ? Math.max(objectifA, objectifB) : settings.nombre;
         if (scoreA + scoreB !== total) {
             return `Règle ${total} manches au total : la somme doit être exactement ${total}.`;
         }
@@ -1037,7 +1039,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return res;
         }
 
-        const total = objectifA;
+        const total = settings.isMixte ? Math.max(objectifA, objectifB) : settings.nombre;
         for (let a = total; a >= 0; a--) {
             res.push([a, total - a]);
         }
