@@ -209,7 +209,7 @@
           <i data-lucide="log-out" style="width: 14px; height: 14px;"></i> Se déconnecter
         </button>
         <div style="text-align: center; margin-top: 1rem; font-size: 0.75rem; color: rgba(255, 255, 255, 0.3);">
-          v2.7.2
+          v2.8.0
         </div>
       </div>
     </nav>
@@ -245,7 +245,7 @@
           <div class="logo-circle-mini">
             <img src="Logo.jpg" alt="BC41" onerror="this.style.display='none'">
           </div>
-          <span class="mobile-title">Billard Blackball Romorantinais <span style="font-size:0.65rem; color:var(--text-muted); font-weight:normal;">v2.7.2</span></span>
+          <span class="mobile-title">Billard Blackball Romorantinais <span style="font-size:0.65rem; color:var(--text-muted); font-weight:normal;">v2.8.0</span></span>
         </div>
 
         <div class="user-profile" id="user-profile-menu-trigger">
@@ -279,19 +279,26 @@
             </div>
           </div>
 
-          <div
-            style="margin-top: 1.5rem; margin-bottom: 1rem; background: rgba(239, 68, 68, 0.15); border-left: 5px solid #ef4444; padding: 1.25rem; border-radius: 6px; display: flex; align-items: flex-start; gap: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.15);">
-            <i data-lucide="alert-circle"
-              style="color: #ef4444; flex-shrink: 0; margin-top: 0.15rem; width: 24px; height: 24px;"></i>
-            <div>
-              <strong
-                style="color: #ef4444; font-size: 1.2rem; display: block; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.5px;">Rappel
-                de gestion</strong>
-              <p style="color: var(--text-main); font-size: 1.1rem; font-weight: 600; margin: 0; line-height: 1.5;">
-                Merci aux membres ayant un solde débiteur de bien vouloir régler leur ardoise avant le 28 du mois pour
-                faciliter la clôture comptable.
-              </p>
+          <!-- Bouton Edit Admin -->
+          <div id="admin-edit-home-btn-container" style="display: none; text-align: right; margin-top: 10px;">
+            <button class="btn btn-outline" onclick="openHomeMessageModal()">
+              <i data-lucide="edit"></i> Éditer le message d'accueil
+            </button>
+          </div>
+
+          <div id="dynamic-home-message-container"
+            style="margin-top: 1.5rem; margin-bottom: 1rem; background: rgba(139, 92, 246, 0.15); border-left: 5px solid var(--primary); padding: 1.25rem; border-radius: 6px; display: none; flex-direction: column; gap: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.15);">
+            <div style="display: flex; align-items: flex-start; gap: 1rem;">
+              <i data-lucide="info"
+                style="color: var(--primary); flex-shrink: 0; margin-top: 0.15rem; width: 24px; height: 24px;"></i>
+              <div style="flex-grow: 1;">
+                <strong id="dynamic-home-title"
+                  style="color: var(--primary); font-size: 1.2rem; display: block; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.5px;">Message du club</strong>
+                <p id="dynamic-home-text" style="color: var(--text-main); font-size: 1.1rem; font-weight: 600; margin: 0; line-height: 1.5; white-space: pre-wrap;">
+                </p>
+              </div>
             </div>
+            <img id="dynamic-home-image" src="" alt="Image associée" style="display: none; max-width: 100%; border-radius: 6px; margin-top: 0.5rem; object-fit: contain; max-height: 400px;">
           </div>
 
         </section>
@@ -1081,6 +1088,39 @@
                 onclick="document.getElementById('member-modal').classList.add('hidden')">Annuler</button>
               <button class="btn-main" id="save-manual-member-btn"
                 style="border:none; padding: 8px 16px; border-radius:8px;">Pré-enregistrer</button>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Modal: Edition du Message d'Accueil -->
+        <div id="home-message-modal" class="modal hidden">
+          <div class="modal-content card" style="max-width: 500px; width: 100%; border: 1px solid var(--border);">
+            <h3>Modifier le message d'accueil</h3>
+            
+            <div class="input-group" style="margin-top: 1rem;">
+              <label>Titre du message</label>
+              <input type="text" id="hm-title" placeholder="Ex: Rappel de gestion">
+            </div>
+
+            <div class="input-group" style="margin-top: 1rem;">
+              <label>Texte du message</label>
+              <textarea id="hm-text" rows="4" placeholder="Votre message ici..." style="width: 100%; background: var(--bg-deep); color: var(--text-main); border: 1px solid var(--border); border-radius: 8px; padding: 10px;"></textarea>
+            </div>
+
+            <div class="input-group" style="margin-top: 1rem;">
+              <label>Image (Optionnelle)</label>
+              <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <input type="text" id="hm-image-url" placeholder="URL ou télécharger" readonly style="flex-grow:1; opacity: 0.7;">
+                <button class="btn btn-outline" style="padding: 0 12px; border-radius: 8px; height: 40px;" onclick="document.getElementById('hm-image-file').click()">
+                  <i data-lucide="upload" style="width: 16px; height: 16px;"></i>
+                </button>
+              </div>
+              <input type="file" id="hm-image-file" accept="image/*" style="display: none;" onchange="document.getElementById('hm-image-url').value = this.files[0] ? this.files[0].name : ''">
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem;">
+              <button class="btn-alt" onclick="document.getElementById('home-message-modal').classList.add('hidden')">Annuler</button>
+              <button class="btn-main" id="save-home-message-btn" style="border:none; padding: 8px 16px; border-radius:8px;">Enregistrer</button>
             </div>
           </div>
         </div>

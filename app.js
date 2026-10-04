@@ -1,5 +1,5 @@
 // Portail Unifié - Billard & Équitation
-console.log("Portail Unifié : Démarrage du script v2.7.2...");
+console.log("Portail Unifié : Démarrage du script v2.8.0...");
 let supabaseClient = null;
 let currentUser = null;
 let drinks = [];
@@ -1274,7 +1274,11 @@ async function loadAppData() {
     if (drkError) console.error("Erreur boissons:", drkError.message);
     drinks = drks || [];
 
-    // 4. Rendu de l'interface
+    // 4. Message d'accueil
+    const { data: settingsData } = await supabaseClient.from('settings').select('*').eq('id', 1).maybeSingle();
+    renderHomeMessage(settingsData);
+
+    // 5. Rendu de l'interface
     renderManagementUI();
 
     // 5. Appliquer les droits d'accès par rôle & démarrer le verrouillage d'inactivité
@@ -1288,6 +1292,88 @@ async function loadAppData() {
     toggleLoading(false);
   }
 }
+
+// --- HOME MESSAGE RENDERING & EDITING ---
+let currentSettings = null;
+
+function renderHomeMessage(settings) {
+  currentSettings = settings || {};
+  const container = document.getElementById('dynamic-home-message-container');
+  const titleEl = document.getElementById('dynamic-home-title');
+  const textEl = document.getElementById('dynamic-home-text');
+  const imgEl = document.getElementById('dynamic-home-image');
+  
+  const title = currentSettings.home_title || '';
+  const text = currentSettings.home_text || '';
+  const image = currentSettings.home_image_url || '';
+
+  if (!title && !text && !image) {
+    container.style.display = 'none';
+  } else {
+    container.style.display = 'flex';
+    titleEl.textContent = title;
+    titleEl.style.display = title ? 'block' : 'none';
+    textEl.textContent = text;
+    textEl.style.display = text ? 'block' : 'none';
+    if (image) {
+      imgEl.src = image;
+      imgEl.style.display = 'block';
+    } else {
+      imgEl.style.display = 'none';
+      imgEl.src = '';
+    }
+  }
+
+  const btnContainer = document.getElementById('admin-edit-home-btn-container');
+  if (currentUser?.profile?.role === 'admin') {
+    btnContainer.style.display = 'block';
+  } else {
+    btnContainer.style.display = 'none';
+  }
+}
+
+window.openHomeMessageModal = function() {
+  if (currentUser?.profile?.role !== 'admin') return;
+  document.getElementById('hm-title').value = currentSettings?.home_title || '';
+  document.getElementById('hm-text').value = currentSettings?.home_text || '';
+  document.getElementById('hm-image-url').value = currentSettings?.home_image_url || '';
+  document.getElementById('hm-image-file').value = '';
+  document.getElementById('home-message-modal').classList.remove('hidden');
+};
+
+document.getElementById('save-home-message-btn')?.addEventListener('click', async () => {
+  const title = document.getElementById('hm-title').value.trim();
+  const text = document.getElementById('hm-text').value.trim();
+  let imgUrl = document.getElementById('hm-image-url').value.trim();
+  const imgFile = document.getElementById('hm-image-file').files[0];
+
+  toggleLoading(true);
+  try {
+    if (imgFile && typeof uploadToSupabase === 'function') {
+      const uploaded = await uploadToSupabase(imgFile);
+      if (uploaded) imgUrl = uploaded;
+    }
+
+    const updateData = { home_title: title, home_text: text, home_image_url: imgUrl };
+    
+    let res;
+    if (currentSettings && currentSettings.id) {
+      res = await supabaseClient.from('settings').update(updateData).eq('id', currentSettings.id);
+    } else {
+      res = await supabaseClient.from('settings').upsert({ id: 1, ...updateData });
+    }
+
+    if (res.error) throw res.error;
+    
+    document.getElementById('home-message-modal').classList.add('hidden');
+    // Refresh to get the new data
+    loadAppData();
+  } catch(e) {
+    alert("Erreur lors de l'enregistrement: " + e.message);
+  } finally {
+    toggleLoading(false);
+  }
+});
 
 // --- UI RENDERING (MANAGEMENT) ---
 function renderManagementUI() {
