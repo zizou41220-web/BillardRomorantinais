@@ -3,7 +3,7 @@ name: Monthly Slate Email
 on:
   schedule:
     # 08:37 UTC (9h37 ou 10h37 en France). Décalage pour éviter les embouteillages de GitHub Actions.
-    - cron: '37 8 27 * *'
+    - cron: '37 8 1 * *'
   workflow_dispatch: # Permet de le lancer manuellement depuis l'interface GitHub pour tester
 
 jobs:
