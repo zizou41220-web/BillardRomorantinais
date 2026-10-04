@@ -2,8 +2,8 @@ name: Weekly Stock Email
 
 on:
   schedule:
-    # 17:43 UTC correspond à 18:43 ou 19:43 en France. Évite les embouteillages de l'heure pleine sur GitHub Actions. (Tous les dimanches = 0)
-    - cron: '43 17 * * 0'
+    # 18:15 UTC correspond à 19:15 ou 20:15 en France. Évite les embouteillages de l'heure pleine sur GitHub Actions. (Tous les dimanches = 0)
+    - cron: '15 18 * * 0'
   workflow_dispatch: # Permet de le lancer manuellement depuis l'interface GitHub
 
 jobs:
