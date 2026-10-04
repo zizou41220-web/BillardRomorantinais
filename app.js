@@ -591,7 +591,7 @@ function applyRoleAccessControl() {
 
   const canManageStock = currentUser?.profile?.can_manage_stock === true;
   const isSuperAdmin = role === 'admin';
-  const isAdminTabVisible = isSuperAdmin || canManageStock;
+  const isAdminTabVisible = isSuperAdmin;
 
   if (mobileNavBar) mobileNavBar.style.display = ''; // Toujours afficher la barre mobile
 
