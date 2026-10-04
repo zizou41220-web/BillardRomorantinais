@@ -765,7 +765,7 @@ function applyRoleAccessControl() {
     loadAppData(); 
   };
 
-  // Affichage du bouton Buvette uniquement pour sebastien.tessier41@orange.fr
+  // Affichage du bouton Buvette pour tous les administrateurs
   const buvetteBtn = document.getElementById('buvette-header-btn');
   if (buvetteBtn) {
     // Attach event listener explicitly
@@ -778,7 +778,7 @@ function applyRoleAccessControl() {
       }
     });
 
-    if (currentUser?.email?.toLowerCase() === 'sebastien.tessier41@orange.fr') {
+    if (role === 'admin') {
       buvetteBtn.classList.remove('hidden');
     } else {
       buvetteBtn.classList.add('hidden');
