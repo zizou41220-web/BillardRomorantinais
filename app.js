@@ -1529,24 +1529,23 @@ async function loadAdminData() {
   // Gérer la visibilité des onglets
   document.querySelectorAll('.btn-tab').forEach(btn => {
     const tabName = btn.getAttribute('data-tab');
-    if (isSuperAdmin) {
+    if (tabName === 'adm-drinks' || tabName === 'adm-stocks') {
+      btn.style.display = canManageStock ? 'inline-block' : 'none';
+    } else {
       btn.style.display = 'inline-block';
-    } else if (canManageStock) {
-      if (tabName === 'adm-drinks' || tabName === 'adm-stocks') {
-        btn.style.display = 'inline-block';
-      } else {
-        btn.style.display = 'none';
-      }
     }
   });
 
-  // Si non admin mais gestionnaire, forcer l'onglet actif sur adm-drinks
-  if (!isSuperAdmin && canManageStock) {
-    document.querySelectorAll('.btn-tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.admin-pane').forEach(p => p.classList.remove('active'));
-    const drinksTabBtn = document.querySelector('.btn-tab[data-tab="adm-drinks"]');
-    if (drinksTabBtn) drinksTabBtn.classList.add('active');
-    document.getElementById('adm-drinks')?.classList.add('active');
+  // Si l'onglet actif est caché, revenir à l'accueil admin (Membres)
+  if (!canManageStock) {
+    const activeTab = document.querySelector('.btn-tab.active');
+    if (activeTab && (activeTab.getAttribute('data-tab') === 'adm-drinks' || activeTab.getAttribute('data-tab') === 'adm-stocks')) {
+      document.querySelectorAll('.btn-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.admin-pane').forEach(p => p.classList.remove('active'));
+      const defaultTab = document.querySelector('.btn-tab[data-tab="adm-members"]');
+      if (defaultTab) defaultTab.classList.add('active');
+      document.getElementById('adm-members')?.classList.add('active');
+    }
   }
 
   // 1. Unified Members Fetch
