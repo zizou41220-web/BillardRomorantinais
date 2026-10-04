@@ -1,5 +1,5 @@
 // Portail Unifié - Billard & Équitation
-console.log("Portail Unifié : Démarrage du script v2.7.1...");
+console.log("Portail Unifié : Démarrage du script v2.7.2...");
 let supabaseClient = null;
 let currentUser = null;
 let drinks = [];
@@ -1836,7 +1836,12 @@ window.toggleStockRights = async function(id, checked) {
   const { error } = await supabaseClient.from('profiles').update({ can_manage_stock: checked }).eq('id', id);
   toggleLoading(false);
   if (error) alert("Erreur: " + error.message);
-  else loadAdminData();
+  else {
+    if (currentUser?.id === id && currentUser?.profile) {
+      currentUser.profile.can_manage_stock = checked;
+    }
+    loadAdminData();
+  }
 };
 
 async function toggleMemberApproval(profileId, isApproved) {
@@ -2135,6 +2140,9 @@ document.getElementById('save-manual-member-btn').addEventListener('click', asyn
       if (Object.keys(profileUpdates).length > 0) {
          try {
              await supabaseClient.from('profiles').update(profileUpdates).eq('id', profile.id);
+             if (currentUser?.id === profile.id && currentUser?.profile) {
+                 currentUser.profile.can_manage_stock = canManageStock;
+             }
          } catch(err) {
              console.warn("Erreur MAJ profile", err);
          }
