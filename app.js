@@ -352,6 +352,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 let isDataLoading = false;
+let isRecoverySession = false;
 
 // --- AUTHENTIFICATION ---
 async function initAuth() {
@@ -375,13 +376,14 @@ async function initAuth() {
   supabaseClient.auth.onAuthStateChange((event, session) => {
     console.log("Auth State Change :", event);
     if (event === 'PASSWORD_RECOVERY' && session) {
+      isRecoverySession = true;
       currentUser = session.user;
       showView('app-shell');
       // Ouvrir directement le modal de changement de mot de passe
       const changePassModal = document.getElementById('change-password-modal');
       if (changePassModal) {
         changePassModal.classList.remove('hidden');
-        alert("🔑 Session de récupération activée. Veuillez saisir votre nouveau mot de passe ci-dessous pour réinitialiser votre accès.");
+        alert("🔑 Session de récupération activée. Veuillez saisir votre nouveau mot de passe ci-dessous pour réinitialiser votre accès. Si vous annulez, vous serez déconnecté.");
       }
       return;
     }
@@ -1063,9 +1065,19 @@ function initNavigation() {
   const changePassForm = document.getElementById('change-password-form');
 
   if (cancelChangePassBtn && changePassModal) {
-    cancelChangePassBtn.addEventListener('click', () => {
+    cancelChangePassBtn.addEventListener('click', async () => {
       changePassModal.classList.add('hidden');
       if (changePassForm) changePassForm.reset();
+      
+      if (isRecoverySession) {
+        // Si c'était une session de récupération et que l'utilisateur annule, on le déconnecte
+        isRecoverySession = false;
+        toggleLoading(true);
+        await supabaseClient.auth.signOut();
+        showView('login-view');
+        toggleLoading(false);
+        alert("Action annulée. Vous avez été déconnecté car le mot de passe n'a pas été changé.");
+      }
     });
   }
 
@@ -1090,6 +1102,7 @@ function initNavigation() {
           alert("❌ Erreur : " + error.message);
         } else {
           alert("✅ Votre mot de passe a été mis à jour avec succès !");
+          isRecoverySession = false;
           changePassModal.classList.add('hidden');
           changePassForm.reset();
         }
