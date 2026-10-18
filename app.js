@@ -1929,6 +1929,8 @@ async function deleteProfile(id) {
   if (error) alert("Erreur: " + error.message);
   else loadAdminData();
 }
+window.deletePendingImport = deletePendingImport;
+window.deleteProfile = deleteProfile;
 
 window.toggleStockRights = async function(id, checked) {
   toggleLoading(true);
@@ -2208,9 +2210,7 @@ document.getElementById('save-manual-member-btn').addEventListener('click', asyn
       record.avatar_url = avatarUrl;
   }
   
-  if (!window.editingPendingMemberId) {
-      record.subscription_start_date = new Date().toISOString().split('T')[0];
-  }
+  const subscriptionStartDate = new Date().toISOString().split('T')[0];
 
   let error = null;
   if (window.editingPendingMemberId) {
@@ -2263,7 +2263,7 @@ document.getElementById('save-manual-member-btn').addEventListener('click', asyn
           await supabaseClient.from('subscriptions').insert({
             member_id: profile.id,
             type_id: typeId,
-            start_date: record.subscription_start_date || new Date().toISOString().split('T')[0],
+            start_date: subscriptionStartDate,
             end_date: endDate
           });
         }
@@ -2505,7 +2505,7 @@ document.getElementById('add-drink-btn').addEventListener('click', () => {
 });
 
 function editDrink(id) {
-  const drink = drinks.find(d => d.id === id);
+  const drink = drinks.find(d => d.id == id);
   if (!drink) return;
 
   editingDrinkId = id;
@@ -2519,6 +2519,7 @@ function editDrink(id) {
   show('drink-modal');
   lucide.createIcons();
 }
+window.editDrink = editDrink;
 
 document.getElementById('save-drink-btn').addEventListener('click', async () => {
   try {
@@ -2565,6 +2566,7 @@ async function deleteDrink(id) {
     loadAdminData();
   }
 }
+window.deleteDrink = deleteDrink;
 
 // Sub Types Logic
 document.getElementById('add-subtype-btn').addEventListener('click', () => {
@@ -2754,9 +2756,9 @@ document.getElementById('csv-import').addEventListener('change', async (e) => {
         const record = {
           email, full_name,
           subscription_type_id: matchedType.id,
-          subscription_start_date: startDate.toISOString().split('T')[0],
           subscription_end_date: endDate.toISOString().split('T')[0]
         };
+        const subStartDate = startDate.toISOString().split('T')[0];
 
         // --- Synchronisation immédiate pour les membres déjà inscrits ---
         const { data: profile } = await supabaseClient
@@ -2780,13 +2782,13 @@ document.getElementById('csv-import').addEventListener('change', async (e) => {
             if (latestSub && latestSub.type_id === matchedType.id) {
               await supabaseClient.from('subscriptions').update({
                 end_date: record.subscription_end_date,
-                start_date: record.subscription_start_date
+                start_date: subStartDate
               }).eq('id', latestSub.id);
             } else {
               await supabaseClient.from('subscriptions').insert({
                 member_id: profile.id,
                 type_id: matchedType.id,
-                start_date: record.subscription_start_date,
+                start_date: subStartDate,
                 end_date: record.subscription_end_date
               });
             }

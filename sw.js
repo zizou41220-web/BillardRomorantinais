@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bcr-cache-v27';
+const CACHE_NAME = 'bcr-cache-v28';
 const urlsToCache = [
   './',
   './index.html',

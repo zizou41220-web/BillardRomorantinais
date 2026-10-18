@@ -43,7 +43,8 @@ L'onglet Tournois est conçu pour les vendredis soirs !
 ### Créer le tournoi
 1. Cliquez sur "Nouveau Tournoi".
 2. Cochez tous les joueurs présents et ajoutez-les.
-3. Cliquez sur Lancer les Poules.
+3. **Important :** Choisissez obligatoirement la condition de victoire ("Nb total de manches" ou "Manches gagnantes"). Une fenêtre explicative s'affichera pour confirmer le fonctionnement de votre choix.
+4. Cliquez sur Créer le tournoi (puis Lancer les Poules si applicable).
 
 ### Entrer les scores
 1. Cliquez sur une poule, entrez les scores et cliquez sur Sauvegarder.
