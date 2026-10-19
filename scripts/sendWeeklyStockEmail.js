@@ -21,8 +21,10 @@ async function run() {
   if (!profilesRes.ok) throw new Error("Erreur fetch profiles: " + await profilesRes.text());
   const managers = await profilesRes.json();
 
-  let adminEmails = managers.map(m => m.email).filter(Boolean).join(',');
-  if (!adminEmails) adminEmails = "billardclubromo41@gmail.com";
+  let emailList = managers.map(m => m.email).filter(Boolean);
+  if (emailList.length === 0) {
+    emailList = ["billardclubromo41@gmail.com"];
+  }
 
   allDrinks.sort((a, b) => a.name.localeCompare(b.name));
   let alertList = "";
@@ -56,31 +58,38 @@ async function run() {
 
   if (!hasAlerts) alertList = "Aucune boisson en alerte.\n";
 
-  // 3. Send email using EmailJS REST API
-  const emailPayload = {
-    service_id: "service_j1zneme",
-    template_id: "template_08br43s",
-    user_id: "eMrX8i7i3dlg3WN20",
-    template_params: {
-      article_nom: "Rapport Hebdomadaire (Dimanche) - 100% AUTOMATIQUE",
-      alert_list: alertList,
-      global_stock: globalStock,
-      admin_emails: adminEmails
+  // 3. Send email to each manager individually (EmailJS does not support comma-separated 'To' addresses properly)
+  console.log(`Envoi du rapport à ${emailList.length} administrateur(s) de stock : ${emailList.join(', ')}`);
+
+  for (const email of emailList) {
+    const emailPayload = {
+      service_id: "service_j1zneme",
+      template_id: "template_08br43s",
+      user_id: "eMrX8i7i3dlg3WN20",
+      template_params: {
+        article_nom: "Rapport Hebdomadaire (Dimanche) - 100% AUTOMATIQUE",
+        alert_list: alertList,
+        global_stock: globalStock,
+        admin_emails: email
+      }
+    };
+
+    console.log(`Envoi via EmailJS REST API à : ${email}...`);
+    const emailRes = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Origin": "http://localhost" },
+      body: JSON.stringify(emailPayload)
+    });
+
+    if (!emailRes.ok) {
+      console.error(`Erreur lors de l'envoi de l'email à ${email}: ` + await emailRes.text());
+    } else {
+      console.log(`Email envoyé avec succès à ${email} !`);
     }
-  };
 
-  console.log("Envoi via EmailJS REST API...");
-  const emailRes = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Origin": "http://localhost" },
-    body: JSON.stringify(emailPayload)
-  });
-
-  if (!emailRes.ok) {
-    throw new Error("Erreur lors de l'envoi de l'email: " + await emailRes.text());
+    // Pause de 1 seconde entre chaque envoi pour respecter les quotas / limites EmailJS
+    await new Promise(resolve => setTimeout(resolve, 1000));
   }
-
-  console.log("Email envoyé avec succès !");
 }
 
 run().catch(err => {
