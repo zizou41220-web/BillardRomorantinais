@@ -2123,7 +2123,7 @@ async function loadAdminData() {
             <td>${soldeHtml}</td>
             <td style="text-align: right;">
               <div style="display: flex; gap: 0.4rem; justify-content: flex-end; flex-wrap: wrap;">
-                <button class="btn btn-main" style="padding:4px 9px; font-size:0.8rem; background: var(--accent-orange); display:inline-flex; align-items:center; gap:4px;" title="Servir des boissons au bar pour ce membre" onclick="openBuvetteForMember('${m.id}')">
+                <button class="btn btn-main" style="padding:4px 9px; font-size:0.8rem; background: #2563eb; color: #ffffff; border: 1px solid #3b82f6; display:inline-flex; align-items:center; gap:4px; font-weight: 600; box-shadow: 0 2px 6px rgba(37, 99, 235, 0.4);" title="Servir des boissons au bar pour ce membre" onclick="openBuvetteForMember('${m.id}')">
                   <i data-lucide="coffee" style="width:14px; height:14px;"></i> Servir
                 </button>
                 <button class="btn btn-outline" style="border-color:#22c55e; color:#22c55e; padding:4px 9px; font-size:0.8rem; display:inline-flex; align-items:center; gap:4px;" title="Recharger le compte crédit d'avance" onclick="openCreditModal('${m.id}', '${safeName}', ${credit})">
@@ -2222,6 +2222,7 @@ async function loadAdminData() {
                 <input type="checkbox" onchange="toggleStockRights('${m.id}', this.checked)" ${m.can_manage_stock ? 'checked' : ''}>
                 Gère Stocks
               </label>
+              <button class="btn" style="background:#2563eb; color:#ffffff; border:1px solid #3b82f6; padding:3px 7px; border-radius:6px; display:inline-flex; align-items:center;" title="Servir au bar pour ce membre" onclick="openBuvetteForMember('${m.id}')"><i data-lucide="coffee" style="width:14px; height:14px;"></i></button>
               <button class="btn btn-outline" style="border-color:#22c55e; color:#22c55e; padding:3px 7px;" title="Créditer le compte" onclick="openCreditModal('${m.id}', '${safeName}', ${credit})"><i data-lucide="wallet" style="width:14px; height:14px;"></i></button>
               ${balance > 0 ? `<button class="btn btn-outline" style="border-color:#ef4444; color:#ef4444; padding:3px 7px;" title="Encaisser" onclick="clearMemberBalance('${m.id}')"><i data-lucide="check-circle" style="width:14px; height:14px;"></i></button>` : ''}
               <button class="btn btn-outline" title="${m.role === 'admin' ? 'Rétrograder en membre simple' : 'Promouvoir Admin'}" onclick="toggleAdminRole('${m.id}', '${m.role}')">
