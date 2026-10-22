@@ -245,7 +245,8 @@
           <div class="logo-circle-mini">
             <img src="Logo.jpg" alt="BC41" onerror="this.style.display='none'">
           </div>
-          <span class="mobile-title">Billard Blackball Romorantinais <span style="font-size:0.65rem; color:var(--text-muted); font-weight:normal;">v2.8.2</span></span>
+          <span class="mobile-title">Billard Blackball Romorantinais <span
+              style="font-size:0.65rem; color:var(--text-muted); font-weight:normal;">v2.8.2</span></span>
         </div>
 
         <div class="user-profile" id="user-profile-menu-trigger">
@@ -293,12 +294,15 @@
                 style="color: #ef4444; flex-shrink: 0; margin-top: 0.15rem; width: 24px; height: 24px;"></i>
               <div style="flex-grow: 1;">
                 <strong id="dynamic-home-title"
-                  style="color: #ef4444; font-size: 1.2rem; display: block; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.5px;">Message du club</strong>
-                <p id="dynamic-home-text" style="color: var(--text-main); font-size: 1.1rem; font-weight: 600; margin: 0; line-height: 1.5; white-space: pre-wrap;">
+                  style="color: #ef4444; font-size: 1.2rem; display: block; margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.5px;">Message
+                  du club</strong>
+                <p id="dynamic-home-text"
+                  style="color: var(--text-main); font-size: 1.1rem; font-weight: 600; margin: 0; line-height: 1.5; white-space: pre-wrap;">
                 </p>
               </div>
             </div>
-            <img id="dynamic-home-image" src="" alt="Image associée" style="display: none; max-width: 100%; border-radius: 6px; margin-top: 0.5rem; object-fit: contain; max-height: 400px;">
+            <img id="dynamic-home-image" src="" alt="Image associée"
+              style="display: none; max-width: 100%; border-radius: 6px; margin-top: 0.5rem; object-fit: contain; max-height: 400px;">
           </div>
 
         </section>
@@ -319,18 +323,29 @@
           </div>
 
           <!-- Bannière Service au Bar par Admin (en lieu et place du membre) -->
-          <div id="serving-member-banner" class="hidden" style="background: rgba(37, 99, 235, 0.15); border: 2px solid #3b82f6; border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);">
-            <div style="display: flex; align-items: center; gap: 0.85rem;">
-              <div style="width: 44px; height: 44px; border-radius: 50%; background: #2563eb; color: white; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; box-shadow: 0 2px 6px rgba(37, 99, 235, 0.5);">
+          <div id="serving-member-banner" class="hidden"
+            style="background: #0f172a; border: 2px solid #3b82f6; border-radius: 12px; padding: 1.1rem 1.3rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);">
+            <div style="display: flex; align-items: center; gap: 0.9rem;">
+              <div
+                style="width: 46px; height: 46px; border-radius: 50%; background: #2563eb; color: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 1.35rem; box-shadow: 0 2px 8px rgba(37, 99, 235, 0.5); flex-shrink: 0;">
                 <i data-lucide="coffee"></i>
               </div>
               <div>
-                <span style="font-size: 0.8rem; text-transform: uppercase; color: #93c5fd; font-weight: 700; letter-spacing: 0.5px; display: block;">Mode Service au Bar (Admin)</span>
-                <span style="font-size: 1.15rem; font-weight: 700; color: #ffffff;">Vous enregistrez pour : <strong id="serving-member-name" style="color: #60a5fa;"></strong></span>
+                <span
+                  style="font-size: 0.8rem; text-transform: uppercase; color: #93c5fd; font-weight: 700; letter-spacing: 0.5px; display: block; margin-bottom: 3px;">
+                  Mode Service au Bar (Admin)
+                </span>
+                <span style="font-size: 1.15rem; font-weight: 700; color: #ffffff; display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                  Vous enregistrez pour :
+                  <strong id="serving-member-name"
+                    style="color: #fbbf24; background: rgba(251, 191, 36, 0.15); border: 1px solid rgba(251, 191, 36, 0.45); padding: 2px 10px; border-radius: 6px; font-weight: 800; font-size: 1.2rem; letter-spacing: 0.3px; text-shadow: 0 1px 2px rgba(0,0,0,0.8);">
+                  </strong>
+                </span>
               </div>
             </div>
             <div style="display: flex; gap: 0.6rem; align-items: center;">
-              <button type="button" class="btn btn-outline" onclick="exitServingMemberMode()" style="border-color: #ef4444; color: #fca5a5; display: inline-flex; align-items: center; gap: 6px; padding: 0.5rem 1rem; font-weight: 600;">
+              <button type="button" class="btn btn-outline" onclick="exitServingMemberMode()"
+                style="border-color: #ef4444; color: #ffffff; background: rgba(239, 68, 68, 0.25); display: inline-flex; align-items: center; gap: 6px; padding: 0.55rem 1.1rem; font-weight: 700; border-radius: 8px; cursor: pointer;">
                 <i data-lucide="arrow-left"></i> Revenir à l'Admin
               </button>
             </div>
@@ -642,7 +657,8 @@
               <div id="default-tournoi-layout">
                 <div class="dashboard-layout">
                   <div class="dashboard-main card glass-card" style="padding:16px;">
-                    <h3 class="section-title" style="font-weight:700; color:var(--text-main); margin-bottom:12px;">CLASSEMENT</h3>
+                    <h3 class="section-title" style="font-weight:700; color:var(--text-main); margin-bottom:12px;">
+                      CLASSEMENT</h3>
                     <div class="table-scroll">
                       <table>
                         <thead>
@@ -662,18 +678,21 @@
                   </div>
 
                   <div class="dashboard-side card glass-card" style="padding:16px;">
-                    <h3 class="section-title" style="font-weight:700; color:var(--text-main); margin-bottom:12px;">MATCHS EN DIRECT (max 2)</h3>
+                    <h3 class="section-title" style="font-weight:700; color:var(--text-main); margin-bottom:12px;">
+                      MATCHS EN DIRECT (max 2)</h3>
                     <div id="matchs-en-cours" class="list-stack"></div>
                   </div>
 
                   <div class="dashboard-bottom">
                     <div class="card glass-card" style="padding:16px;">
-                      <h3 class="section-title" style="font-weight:700; color:var(--text-main); margin-bottom:12px;">MATCHS À VENIR</h3>
+                      <h3 class="section-title" style="font-weight:700; color:var(--text-main); margin-bottom:12px;">
+                        MATCHS À VENIR</h3>
                       <div id="matchs-attente" class="list-stack"></div>
                     </div>
 
                     <div class="card glass-card" style="padding:16px; grid-column: span 2;">
-                      <h3 class="section-title" style="font-weight:700; color:var(--text-main); margin-bottom:12px;">RÉSULTATS RÉCENTS</h3>
+                      <h3 class="section-title" style="font-weight:700; color:var(--text-main); margin-bottom:12px;">
+                        RÉSULTATS RÉCENTS</h3>
                       <div class="table-scroll">
                         <table>
                           <thead>
@@ -780,7 +799,8 @@
 
               <div class="dashboard-layout">
                 <div class="dashboard-main card glass-card" style="padding:16px;">
-                  <h3 class="section-title" style="font-weight:700; color:var(--text-main); margin-bottom:12px;">ARBRE DU TABLEAU FINAL</h3>
+                  <h3 class="section-title" style="font-weight:700; color:var(--text-main); margin-bottom:12px;">ARBRE
+                    DU TABLEAU FINAL</h3>
                   <div class="bracket-scroll" style="overflow-x: auto;">
                     <div id="tableau-final-bracket" class="bracket-board" style="display: flex; gap: 20px;">
                     </div>
@@ -788,18 +808,21 @@
                 </div>
 
                 <div class="dashboard-side card glass-card" style="padding:16px;">
-                  <h3 class="section-title" style="font-weight:700; color:var(--text-main); margin-bottom:12px;">MATCHS EN DIRECT</h3>
+                  <h3 class="section-title" style="font-weight:700; color:var(--text-main); margin-bottom:12px;">MATCHS
+                    EN DIRECT</h3>
                   <div id="tableau-final-matchs-en-cours" class="list-stack"></div>
                 </div>
 
                 <div class="dashboard-bottom">
                   <div class="card glass-card" style="padding:16px;">
-                    <h3 class="section-title" style="font-weight:700; color:var(--text-main); margin-bottom:12px;">MATCHS À VENIR</h3>
+                    <h3 class="section-title" style="font-weight:700; color:var(--text-main); margin-bottom:12px;">
+                      MATCHS À VENIR</h3>
                     <div id="tableau-final-matchs-attente" class="list-stack"></div>
                   </div>
 
                   <div class="card glass-card" style="padding:16px;">
-                    <h3 class="section-title" style="font-weight:700; color:var(--text-main); margin-bottom:12px;">RÉSULTATS RÉCENTS</h3>
+                    <h3 class="section-title" style="font-weight:700; color:var(--text-main); margin-bottom:12px;">
+                      RÉSULTATS RÉCENTS</h3>
                     <div class="table-scroll">
                       <table>
                         <thead>
@@ -817,7 +840,8 @@
                   </div>
 
                   <div class="card glass-card" style="padding:16px;">
-                    <h3 class="section-title" style="font-weight:700; color:var(--text-main); margin-bottom:12px;">STATUT DU TOURNOI</h3>
+                    <h3 class="section-title" style="font-weight:700; color:var(--text-main); margin-bottom:12px;">
+                      STATUT DU TOURNOI</h3>
                     <div class="status-row" id="tableau-final-status-row" style="margin:0 0 10px 0;"></div>
                     <p id="tableau-final-gagnant" class="help" style="margin-top:10px;"></p>
                     <button type="button" id="archiver-tournoi-btn" class="btn-main hidden"
@@ -901,7 +925,8 @@
             <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
               <h2>Administration du Club</h2>
               <button class="btn btn-main hidden" id="buvette-header-btn"
-                style="padding: 0.6rem 1rem; font-size: 0.95rem; background: #2563eb; color: #ffffff; border: 1px solid #3b82f6; box-shadow: 0 2px 6px rgba(37, 99, 235, 0.4);" onclick="openBuvetteModal()">
+                style="padding: 0.6rem 1rem; font-size: 0.95rem; background: #2563eb; color: #ffffff; border: 1px solid #3b82f6; box-shadow: 0 2px 6px rgba(37, 99, 235, 0.4);"
+                onclick="openBuvetteModal()">
                 <i data-lucide="shopping-cart" style="width: 16px; height: 16px;"></i> Ouvrir le Mode Buvette
               </button>
             </div>
@@ -1034,7 +1059,8 @@
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
               <div style="display: flex; align-items: center; gap: 1rem;">
                 <h3><i data-lucide="bar-chart-2"></i> Évolution des Ventes</h3>
-                <select id="season-selector" class="chakra-select" style="width: auto; padding: 4px 10px; font-size: 0.9rem;">
+                <select id="season-selector" class="chakra-select"
+                  style="width: auto; padding: 4px 10px; font-size: 0.9rem;">
                   <!-- Options generated by JS -->
                 </select>
               </div>
@@ -1109,12 +1135,12 @@
             </div>
           </div>
         </div>
-        
+
         <!-- Modal: Edition du Message d'Accueil -->
         <div id="home-message-modal" class="modal hidden">
           <div class="modal-content card" style="max-width: 500px; width: 100%; border: 1px solid var(--border);">
             <h3>Modifier le message d'accueil</h3>
-            
+
             <div class="input-group" style="margin-top: 1rem;">
               <label>Titre du message</label>
               <input type="text" id="hm-title" placeholder="Ex: Rappel de gestion">
@@ -1122,23 +1148,29 @@
 
             <div class="input-group" style="margin-top: 1rem;">
               <label>Texte du message</label>
-              <textarea id="hm-text" rows="4" placeholder="Votre message ici..." style="width: 100%; background: var(--bg-deep); color: var(--text-main); border: 1px solid var(--border); border-radius: 8px; padding: 10px;"></textarea>
+              <textarea id="hm-text" rows="4" placeholder="Votre message ici..."
+                style="width: 100%; background: var(--bg-deep); color: var(--text-main); border: 1px solid var(--border); border-radius: 8px; padding: 10px;"></textarea>
             </div>
 
             <div class="input-group" style="margin-top: 1rem;">
               <label>Image (Optionnelle)</label>
               <div style="display: flex; gap: 0.5rem; align-items: center;">
-                <input type="text" id="hm-image-url" placeholder="URL ou télécharger" readonly style="flex-grow:1; opacity: 0.7;">
-                <button class="btn btn-outline" style="padding: 0 12px; border-radius: 8px; height: 40px;" onclick="document.getElementById('hm-image-file').click()">
+                <input type="text" id="hm-image-url" placeholder="URL ou télécharger" readonly
+                  style="flex-grow:1; opacity: 0.7;">
+                <button class="btn btn-outline" style="padding: 0 12px; border-radius: 8px; height: 40px;"
+                  onclick="document.getElementById('hm-image-file').click()">
                   <i data-lucide="upload" style="width: 16px; height: 16px;"></i>
                 </button>
               </div>
-              <input type="file" id="hm-image-file" accept="image/*" style="display: none;" onchange="document.getElementById('hm-image-url').value = this.files[0] ? this.files[0].name : ''">
+              <input type="file" id="hm-image-file" accept="image/*" style="display: none;"
+                onchange="document.getElementById('hm-image-url').value = this.files[0] ? this.files[0].name : ''">
             </div>
 
             <div style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1.5rem;">
-              <button class="btn-alt" onclick="document.getElementById('home-message-modal').classList.add('hidden')">Annuler</button>
-              <button class="btn-main" id="save-home-message-btn" style="border:none; padding: 8px 16px; border-radius:8px;">Enregistrer</button>
+              <button class="btn-alt"
+                onclick="document.getElementById('home-message-modal').classList.add('hidden')">Annuler</button>
+              <button class="btn-main" id="save-home-message-btn"
+                style="border:none; padding: 8px 16px; border-radius:8px;">Enregistrer</button>
             </div>
           </div>
         </div>
@@ -1438,21 +1470,26 @@
       </div>
 
       <!-- Sélecteur Client : Vente externe ou Membre du Club -->
-      <div style="background: rgba(255, 255, 255, 0.05); padding: 0.85rem; border-radius: 8px; margin-bottom: 1rem; border: 1px solid rgba(255,255,255,0.1);">
-        <label style="display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.4rem; font-weight: 600;">
+      <div
+        style="background: rgba(255, 255, 255, 0.05); padding: 0.85rem; border-radius: 8px; margin-bottom: 1rem; border: 1px solid rgba(255,255,255,0.1);">
+        <label
+          style="display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.4rem; font-weight: 600;">
           <i data-lucide="user-check" style="width: 14px; height: 14px; vertical-align: middle;"></i> Servir pour :
         </label>
-        <select id="buvette-member-select" onchange="onBuvetteMemberChanged()" style="width: 100%; padding: 0.6rem; border-radius: 6px; background: #0f172a; border: 1px solid rgba(255,255,255,0.2); color: white; font-size: 0.95rem;">
+        <select id="buvette-member-select" onchange="onBuvetteMemberChanged()"
+          style="width: 100%; padding: 0.6rem; border-radius: 6px; background: #0f172a; border: 1px solid rgba(255,255,255,0.2); color: white; font-size: 0.95rem;">
           <option value="">🛒 Vente Externe / Buvette (Recette générale)</option>
           <!-- Injecté dynamiquement par JS -->
         </select>
-        
-        <div id="buvette-member-info" class="hidden" style="margin-top: 0.6rem; padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.06);">
+
+        <div id="buvette-member-info" class="hidden"
+          style="margin-top: 0.6rem; padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.06);">
           <span>Solde actuel du membre :</span>
           <span id="buvette-member-solde" style="font-weight: 700;">0.00 €</span>
         </div>
 
-        <div id="buvette-payment-type-group" class="hidden" style="margin-top: 0.6rem; display: flex; gap: 1rem; font-size: 0.85rem; flex-wrap: wrap;">
+        <div id="buvette-payment-type-group" class="hidden"
+          style="margin-top: 0.6rem; display: flex; gap: 1rem; font-size: 0.85rem; flex-wrap: wrap;">
           <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer;">
             <input type="radio" name="buvette-payment-mode" value="auto" checked>
             <span>💳 Déduire du crédit / Mettre sur ardoise</span>
@@ -1479,7 +1516,7 @@
         </table>
       </div>
       <div style="margin-bottom: 1rem; width: 100%; box-sizing: border-box;">
-        <textarea id="buvette-comment" placeholder="Commentaire obligatoire (ex: Soirée, Tournoi...)" 
+        <textarea id="buvette-comment" placeholder="Commentaire obligatoire (ex: Soirée, Tournoi...)"
           style="display: block; width: 100%; box-sizing: border-box; min-height: 80px; padding: 1rem; resize: vertical; background: rgba(255, 255, 255, 0.1); border: 1px solid var(--accent-orange); font-size: 1.05rem; color: white;"></textarea>
       </div>
       <div
@@ -1499,44 +1536,59 @@
     <div class="modal-card" style="max-width: 480px; width: 100%;">
       <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.8rem;">
         <div>
-          <h3 id="credit-modal-title" style="margin: 0; display: flex; align-items: center; gap: 0.5rem; font-size: 1.25rem;">
+          <h3 id="credit-modal-title"
+            style="margin: 0; display: flex; align-items: center; gap: 0.5rem; font-size: 1.25rem;">
             <i data-lucide="wallet" style="color: #22c55e;"></i> Créditer un compte
           </h3>
-          <span id="credit-modal-member-name" style="color: var(--accent-gold); font-size: 0.95rem; font-weight: 600; display: block; margin-top: 4px;"></span>
+          <span id="credit-modal-member-name"
+            style="color: var(--accent-gold); font-size: 0.95rem; font-weight: 600; display: block; margin-top: 4px;"></span>
         </div>
-        <button onclick="closeModal('credit-modal')" class="btn-close" style="background: none; border: none; color: var(--text-muted); cursor: pointer;"><i data-lucide="x"></i></button>
+        <button onclick="closeModal('credit-modal')" class="btn-close"
+          style="background: none; border: none; color: var(--text-muted); cursor: pointer;"><i
+            data-lucide="x"></i></button>
       </div>
 
       <p class="modal-description" id="credit-modal-desc">Ajouter de l'argent d'avance pour le membre.</p>
 
-      <div style="background: rgba(255, 255, 255, 0.05); padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1.2rem; display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+      <div
+        style="background: rgba(255, 255, 255, 0.05); padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1.2rem; display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
         <span style="font-size: 0.9rem; color: var(--text-muted);">Solde actuel :</span>
         <div style="display: flex; align-items: center; gap: 0.75rem;">
           <span id="credit-modal-current-balance" style="font-size: 1.1rem; font-weight: 700;">0.00 €</span>
-          <button type="button" id="btn-reset-credit-zero" class="btn btn-outline" style="border-color: #ef4444; color: #fca5a5; padding: 3px 8px; font-size: 0.75rem; display: none; cursor: pointer;" onclick="resetMemberCreditToZero()" title="Remettre le crédit d'avance à 0 €">
+          <button type="button" id="btn-reset-credit-zero" class="btn btn-outline"
+            style="border-color: #ef4444; color: #fca5a5; padding: 3px 8px; font-size: 0.75rem; display: none; cursor: pointer;"
+            onclick="resetMemberCreditToZero()" title="Remettre le crédit d'avance à 0 €">
             <i data-lucide="rotate-ccw" style="width: 12px; height: 12px; vertical-align: middle;"></i> Remettre à 0 €
           </button>
         </div>
       </div>
 
       <div class="form-group" style="margin-bottom: 1rem;">
-        <label style="display: block; font-size: 0.85rem; margin-bottom: 0.4rem; color: var(--text-muted);">Montant à créditer (€) *</label>
+        <label style="display: block; font-size: 0.85rem; margin-bottom: 0.4rem; color: var(--text-muted);">Montant à
+          créditer (€) *</label>
         <div style="display: flex; gap: 0.5rem; align-items: center;">
-          <input type="number" id="credit-amount-input" step="0.5" min="0.5" placeholder="Ex: 20.00" required style="flex: 1; padding: 0.7rem; font-size: 1.2rem; font-weight: 700; border-radius: 6px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2); color: white;">
+          <input type="number" id="credit-amount-input" step="0.5" min="0.5" placeholder="Ex: 20.00" required
+            style="flex: 1; padding: 0.7rem; font-size: 1.2rem; font-weight: 700; border-radius: 6px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2); color: white;">
           <span style="font-size: 1.2rem; font-weight: 700; color: #22c55e;">€</span>
         </div>
         <!-- Raccourcis de montants rapides -->
         <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
-          <button type="button" class="btn-alt" style="padding: 4px 10px; font-size: 0.8rem;" onclick="setCreditQuickAmount(10)">+10 €</button>
-          <button type="button" class="btn-alt" style="padding: 4px 10px; font-size: 0.8rem;" onclick="setCreditQuickAmount(20)">+20 €</button>
-          <button type="button" class="btn-alt" style="padding: 4px 10px; font-size: 0.8rem;" onclick="setCreditQuickAmount(30)">+30 €</button>
-          <button type="button" class="btn-alt" style="padding: 4px 10px; font-size: 0.8rem;" onclick="setCreditQuickAmount(50)">+50 €</button>
+          <button type="button" class="btn-alt" style="padding: 4px 10px; font-size: 0.8rem;"
+            onclick="setCreditQuickAmount(10)">+10 €</button>
+          <button type="button" class="btn-alt" style="padding: 4px 10px; font-size: 0.8rem;"
+            onclick="setCreditQuickAmount(20)">+20 €</button>
+          <button type="button" class="btn-alt" style="padding: 4px 10px; font-size: 0.8rem;"
+            onclick="setCreditQuickAmount(30)">+30 €</button>
+          <button type="button" class="btn-alt" style="padding: 4px 10px; font-size: 0.8rem;"
+            onclick="setCreditQuickAmount(50)">+50 €</button>
         </div>
       </div>
 
       <div class="form-group" style="margin-bottom: 1rem;">
-        <label style="display: block; font-size: 0.85rem; margin-bottom: 0.4rem; color: var(--text-muted);">Moyen de règlement *</label>
-        <select id="credit-payment-method" style="width: 100%; padding: 0.6rem; border-radius: 6px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2); color: white;">
+        <label style="display: block; font-size: 0.85rem; margin-bottom: 0.4rem; color: var(--text-muted);">Moyen de
+          règlement *</label>
+        <select id="credit-payment-method"
+          style="width: 100%; padding: 0.6rem; border-radius: 6px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2); color: white;">
           <option value="Espèces" selected>💵 Espèces</option>
           <option value="Chèque">📝 Chèque</option>
           <option value="Carte Bancaire">💳 Carte Bancaire</option>
@@ -1545,17 +1597,21 @@
       </div>
 
       <div class="form-group" style="margin-bottom: 1.5rem;">
-        <label style="display: block; font-size: 0.85rem; margin-bottom: 0.4rem; color: var(--text-muted);">Commentaire / Référence (optionnel)</label>
-        <input type="text" id="credit-note-input" placeholder="Ex: Chèque n°12345, remis au bar..." style="width: 100%; padding: 0.6rem; border-radius: 6px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2); color: white;">
+        <label style="display: block; font-size: 0.85rem; margin-bottom: 0.4rem; color: var(--text-muted);">Commentaire
+          / Référence (optionnel)</label>
+        <input type="text" id="credit-note-input" placeholder="Ex: Chèque n°12345, remis au bar..."
+          style="width: 100%; padding: 0.6rem; border-radius: 6px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2); color: white;">
       </div>
 
-      <div id="credit-admin-signature" style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem; font-style: italic;">
+      <div id="credit-admin-signature"
+        style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem; font-style: italic;">
         <!-- Injecté : Enregistré par : [Admin] -->
       </div>
 
       <div style="display: flex; gap: 0.8rem; justify-content: flex-end;">
         <button type="button" class="btn-alt" onclick="closeModal('credit-modal')">Annuler</button>
-        <button type="button" id="btn-submit-credit" class="btn-main" style="background: #22c55e; color: #ffffff; border: none; padding: 0.65rem 1.3rem; border-radius: 8px; font-weight: 700; display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; box-shadow: 0 2px 6px rgba(34, 197, 94, 0.4);">
+        <button type="button" id="btn-submit-credit" class="btn-main"
+          style="background: #22c55e; color: #ffffff; border: none; padding: 0.65rem 1.3rem; border-radius: 8px; font-weight: 700; display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer; box-shadow: 0 2px 6px rgba(34, 197, 94, 0.4);">
           <i data-lucide="check"></i> Confirmer le rechargement
         </button>
       </div>
@@ -1628,7 +1684,7 @@
     src="https://connect.facebook.net/fr_FR/sdk.js#xfbml=1&version=v17.0"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <script src="tournaments.js?v=2.4.8" defer></script>
-  <script src="app.js?v=2.9.15" defer></script>
+  <script src="app.js?v=2.9.16" defer></script>
   <script>
     // Initialisation des icônes Lucide
     lucide.createIcons();

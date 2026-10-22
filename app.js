@@ -1945,7 +1945,7 @@ function renderManagementUI() {
   const heroSubtitle = document.querySelector('.management-hero-header .hero-subtitle');
   if (heroSubtitle) {
     if (isServing) {
-      heroSubtitle.innerHTML = `<span style="color:#60a5fa; font-weight:700;">🍺 Mode Service Bar</span> — Vous commandez pour <strong>${target.full_name}</strong> (débit direct de son crédit ou ardoise).`;
+      heroSubtitle.innerHTML = `<span style="color:#60a5fa; font-weight:700;">🍺 Mode Service Bar</span> — Vous commandez pour <strong style="color: #fbbf24; font-size: 1.05rem;">${target.full_name}</strong> (débit direct de son crédit ou ardoise).`;
     } else {
       heroSubtitle.textContent = "Membres, consommations et services privilèges.";
     }
