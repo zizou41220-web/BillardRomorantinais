@@ -2882,6 +2882,7 @@ window.openCreditModal = async function(memberId, memberName, currentCredit = 0)
 
   const modal = document.getElementById('credit-modal');
   const title = document.getElementById('credit-modal-title');
+  const memberNameSpan = document.getElementById('credit-modal-member-name');
   const desc = document.getElementById('credit-modal-desc');
   const balanceSpan = document.getElementById('credit-modal-current-balance');
   const amountInput = document.getElementById('credit-amount-input');
@@ -2890,8 +2891,9 @@ window.openCreditModal = async function(memberId, memberName, currentCredit = 0)
 
   if (!modal) return;
 
-  if (title) title.innerHTML = `<i data-lucide="wallet" style="color: #22c55e;"></i> Créditer le compte de <strong>${memberName}</strong>`;
-  if (desc) desc.textContent = `Ajouter du crédit d'avance (cagnotte) pour ${memberName}. Si le membre a une ardoise, elle sera apurée en priorité.`;
+  if (title) title.innerHTML = `<i data-lucide="wallet" style="color: #22c55e;"></i> Créditer un compte`;
+  if (memberNameSpan) memberNameSpan.textContent = `Membre : ${memberName}`;
+  if (desc) desc.textContent = `Ajouter du crédit d'avance (cagnotte). Si le membre a une ardoise, elle sera apurée en priorité.`;
   
   // Récupérer le solde exact (ardoise et crédit)
   const { data: unpaidCons } = await supabaseClient.from('consumptions').select('price_at_time, quantity').eq('member_id', memberId).eq('is_paid', false);
@@ -3041,7 +3043,11 @@ if (btnSubmitCredit) {
       if (typeof loadAdminData === 'function') loadAdminData();
 
     } catch (err) {
-      alert("Erreur lors du rechargement de crédit : " + err.message);
+      if (err.message?.includes('credit_balance') || err.message?.includes('schema cache')) {
+        alert("⚠️ La colonne 'credit_balance' n'est pas encore créée dans votre base Supabase.\n\nVeuillez exécuter le script SQL 'setup_bar_and_credits.sql' dans l'onglet SQL Editor de votre projet Supabase pour activer la gestion du crédit.");
+      } else {
+        alert("Erreur lors du rechargement de crédit : " + err.message);
+      }
     } finally {
       toggleLoading(false);
     }
