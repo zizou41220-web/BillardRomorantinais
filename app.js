@@ -613,7 +613,92 @@ function applyRoleAccessControl() {
   }
 
   // --- GESTION BUVETTE (MODAL) ---
-  window.openBuvetteModal = function() {
+  // --- GESTION BUVETTE & SERVICE AU BAR (MODAL) ---
+  window.cachedMembersForBuvette = [];
+
+  window.populateBuvetteMemberSelect = async function(preselectedMemberId = null) {
+    const select = document.getElementById('buvette-member-select');
+    if (!select) return;
+
+    let members = window.allMembersList;
+    if (!members || members.length === 0) {
+      const { data } = await supabaseClient
+        .from('profiles')
+        .select('id, full_name, email, credit_balance, consumptions(*)')
+        .order('full_name');
+      members = data || [];
+      window.allMembersList = members;
+    }
+    window.cachedMembersForBuvette = members;
+
+    select.innerHTML = '<option value="">🛒 Vente Externe / Buvette (Recette générale)</option>';
+    members.forEach(m => {
+      const unpaidCons = m.consumptions?.filter(c => !c.is_paid) || [];
+      const balance = unpaidCons.reduce((acc, c) => acc + (c.price_at_time * (c.quantity || 1)), 0);
+      const credit = parseFloat(m.credit_balance) || 0;
+
+      let soldeBadge = '0.00 €';
+      if (credit > 0) soldeBadge = `+${credit.toFixed(2)} € Crédit`;
+      else if (balance > 0) soldeBadge = `-${balance.toFixed(2)} € Ardoise`;
+
+      const opt = document.createElement('option');
+      opt.value = m.id;
+      opt.textContent = `${m.full_name} [${soldeBadge}]`;
+      if (preselectedMemberId && m.id === preselectedMemberId) {
+        opt.selected = true;
+      }
+      select.appendChild(opt);
+    });
+
+    window.onBuvetteMemberChanged();
+  };
+
+  window.onBuvetteMemberChanged = function() {
+    const select = document.getElementById('buvette-member-select');
+    const infoDiv = document.getElementById('buvette-member-info');
+    const paymentGroup = document.getElementById('buvette-payment-type-group');
+    const soldeSpan = document.getElementById('buvette-member-solde');
+    const commentInput = document.getElementById('buvette-comment');
+    const modalTitle = document.getElementById('buvette-modal-title');
+
+    if (!select) return;
+    const memberId = select.value;
+
+    if (!memberId) {
+      if (infoDiv) infoDiv.classList.add('hidden');
+      if (paymentGroup) paymentGroup.classList.add('hidden');
+      if (commentInput) commentInput.placeholder = "Commentaire obligatoire pour vente externe (ex: Soirée, Tournoi...)";
+      if (modalTitle) modalTitle.innerHTML = '<i data-lucide="shopping-cart"></i> Mode Bar & Buvette';
+    } else {
+      const member = window.cachedMembersForBuvette?.find(m => m.id === memberId);
+      const unpaidCons = member?.consumptions?.filter(c => !c.is_paid) || [];
+      const balance = unpaidCons.reduce((acc, c) => acc + (c.price_at_time * (c.quantity || 1)), 0);
+      const credit = parseFloat(member?.credit_balance) || 0;
+
+      if (infoDiv) infoDiv.classList.remove('hidden');
+      if (paymentGroup) paymentGroup.classList.remove('hidden');
+
+      if (soldeSpan) {
+        if (credit > 0) {
+          soldeSpan.innerHTML = `<span style="color: #22c55e; font-weight:700;">+${credit.toFixed(2)} € (Crédit disponible)</span>`;
+        } else if (balance > 0) {
+          soldeSpan.innerHTML = `<span style="color: #ef4444; font-weight:700;">-${balance.toFixed(2)} € (Ardoise en cours)</span>`;
+        } else {
+          soldeSpan.innerHTML = `<span style="color: var(--text-muted); font-weight:700;">0.00 € (À jour)</span>`;
+        }
+      }
+
+      if (commentInput) commentInput.placeholder = "Commentaire optionnel pour ce membre (ex: Tournoi, Tournée...)";
+      if (modalTitle) modalTitle.innerHTML = `<i data-lucide="user-check"></i> Servir au bar : <strong>${member?.full_name || 'Membre'}</strong>`;
+    }
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  };
+
+  window.openBuvetteForMember = async function(memberId) {
+    await window.openBuvetteModal(memberId);
+  };
+
+  window.openBuvetteModal = async function(preselectedMemberId = null) {
     try {
       const modal = document.getElementById('buvette-modal');
       const tbody = document.getElementById('buvette-drinks-list');
@@ -659,7 +744,12 @@ function applyRoleAccessControl() {
       });
     
       window.calculateBuvetteTotal();
+
+      // Peupler le sélecteur de membre
+      await window.populateBuvetteMemberSelect(preselectedMemberId);
+
       modal.classList.remove('hidden');
+      if (typeof lucide !== 'undefined') lucide.createIcons();
     } catch(e) {
       alert("Erreur dans openBuvetteModal: " + e.message);
     }
@@ -707,13 +797,16 @@ function applyRoleAccessControl() {
     const commentInput = document.getElementById('buvette-comment');
     const commentValue = commentInput ? commentInput.value.trim() : '';
 
-    if (!commentValue) {
-      alert("Veuillez obligatoirement saisir un commentaire (ex: Soirée, Tournoi, Tournée...) avant de valider.");
+    const memberSelect = document.getElementById('buvette-member-select');
+    const selectedMemberId = memberSelect ? memberSelect.value : '';
+
+    if (!selectedMemberId && !commentValue) {
+      alert("Veuillez obligatoirement saisir un commentaire (ex: Soirée, Tournoi, Tournée...) pour une vente externe.");
       return;
     }
 
     const rows = tbody.querySelectorAll('tr');
-    const itemsToInsert = [];
+    const selectedItems = [];
     
     rows.forEach(row => {
       const qtyInput = row.querySelector('.buvette-qty');
@@ -726,56 +819,183 @@ function applyRoleAccessControl() {
           const price = parseFloat(qtyInput.getAttribute('data-price')) || 0;
           const isFree = freeCheck.checked;
           
-          let itemPayload = {
+          selectedItems.push({
             drink_id: id,
             quantity: qty,
             price_at_time: isFree ? 0 : price,
-            member_id: currentUser.id,
-            is_paid: true,
-            paid_at: new Date().toISOString(),
-            paid_by_name: (currentUser.full_name || currentUser.email) + " (Buvette : " + commentValue + ")"
-          };
-          itemsToInsert.push(itemPayload);
+            isFree: isFree
+          });
         }
       }
     });
 
-    if (itemsToInsert.length === 0) {
+    if (selectedItems.length === 0) {
       alert('Aucune boisson sélectionnée.');
       return;
     }
 
+    const adminName = currentUser ? (currentUser.full_name || currentUser.profile?.full_name || currentUser.email) : 'Admin';
     toggleLoading(true);
-    
-    let { error: insertError } = await supabaseClient.from('consumptions').insert(itemsToInsert);
-    
-    // Auto-réparation si profil manquant dans profiles (violation de clé étrangère)
-    if (insertError && (insertError.message?.toLowerCase().includes('foreign key constraint') || insertError.code === '23503')) {
-      console.warn("Erreur clé étrangère buvette détectée. Réparation automatique du profil...");
-      await ensureUserProfileExists(currentUser);
-      const retry = await supabaseClient.from('consumptions').insert(itemsToInsert);
-      insertError = retry.error;
-    }
 
-    if (insertError) {
-      toggleLoading(false);
-      alert('Erreur lors de la validation : ' + insertError.message);
-      return;
-    }
+    try {
+      if (!selectedMemberId) {
+        // --- CAS 1 : VENTE EXTERNE / RECETTE GÉNÉRALE ---
+        const itemsToInsert = selectedItems.map(item => ({
+          drink_id: item.drink_id,
+          quantity: item.quantity,
+          price_at_time: item.price_at_time,
+          member_id: currentUser.id,
+          is_paid: true,
+          paid_at: new Date().toISOString(),
+          paid_by_name: `${adminName} (Buvette : ${commentValue})`,
+          recorded_by_name: `${adminName} (Admin)`
+        }));
 
-    for (const item of itemsToInsert) {
-      const drink = drinks.find(d => String(d.id) === String(item.drink_id));
-      if (drink && drink.stock !== null && drink.stock !== undefined) {
-        const newStock = drink.stock - item.quantity;
-        await supabaseClient.from('drinks').update({ stock: newStock }).eq('id', drink.id);
-        drink.stock = newStock;
+        let { error: insertError } = await supabaseClient.from('consumptions').insert(itemsToInsert);
+        if (insertError && (insertError.message?.toLowerCase().includes('foreign key constraint') || insertError.code === '23503')) {
+          await ensureUserProfileExists(currentUser);
+          const retry = await supabaseClient.from('consumptions').insert(itemsToInsert);
+          insertError = retry.error;
+        }
+        if (insertError) throw insertError;
+
+      } else {
+        // --- CAS 2 : COMMANDE SERVANT UN MEMBRE DU CLUB ---
+        const paymentModeInput = document.querySelector('input[name="buvette-payment-mode"]:checked');
+        const paymentMode = paymentModeInput ? paymentModeInput.value : 'auto';
+
+        const { data: memberProfile } = await supabaseClient
+          .from('profiles')
+          .select('id, full_name, email, credit_balance')
+          .eq('id', selectedMemberId)
+          .maybeSingle();
+
+        const memberCredit = parseFloat(memberProfile?.credit_balance) || 0;
+
+        if (paymentMode === 'paid_now') {
+          // Paiement direct en espèces / CB au bar
+          const itemsToInsert = selectedItems.map(item => ({
+            drink_id: item.drink_id,
+            quantity: item.quantity,
+            price_at_time: item.price_at_time,
+            member_id: selectedMemberId,
+            is_paid: true,
+            paid_at: new Date().toISOString(),
+            paid_by_name: `Encaissé au bar (${adminName})${commentValue ? ' - ' + commentValue : ''}`,
+            recorded_by_name: `${adminName} (Admin)`
+          }));
+
+          let { error: insertError } = await supabaseClient.from('consumptions').insert(itemsToInsert);
+          if (insertError && (insertError.message?.toLowerCase().includes('foreign key constraint') || insertError.code === '23503')) {
+            await ensureUserProfileExists({ id: selectedMemberId, email: memberProfile?.email });
+            const retry = await supabaseClient.from('consumptions').insert(itemsToInsert);
+            insertError = retry.error;
+          }
+          if (insertError) throw insertError;
+
+        } else {
+          // Mode auto : Déduction du crédit disponible en priorité, puis mise sur ardoise si crédit épuisé
+          let remainingCredit = memberCredit;
+          const itemsToInsert = [];
+
+          for (const item of selectedItems) {
+            const lineTotal = item.price_at_time * item.quantity;
+
+            if (item.price_at_time === 0) {
+              itemsToInsert.push({
+                drink_id: item.drink_id,
+                quantity: item.quantity,
+                price_at_time: 0,
+                member_id: selectedMemberId,
+                is_paid: true,
+                paid_at: new Date().toISOString(),
+                paid_by_name: `Gratuit (${adminName})`,
+                recorded_by_name: `${adminName} (Admin)`
+              });
+            } else if (remainingCredit >= lineTotal) {
+              // Couvert en totalité par le crédit
+              remainingCredit -= lineTotal;
+              itemsToInsert.push({
+                drink_id: item.drink_id,
+                quantity: item.quantity,
+                price_at_time: item.price_at_time,
+                member_id: selectedMemberId,
+                is_paid: true,
+                paid_at: new Date().toISOString(),
+                paid_by_name: `Crédit prépayé (Servi par ${adminName})`,
+                recorded_by_name: `${adminName} (Admin)`
+              });
+            } else if (remainingCredit > 0) {
+              // Couvert partiellement par le crédit
+              const covered = remainingCredit;
+              const due = lineTotal - remainingCredit;
+              remainingCredit = 0;
+
+              itemsToInsert.push({
+                drink_id: item.drink_id,
+                quantity: 1,
+                price_at_time: covered,
+                member_id: selectedMemberId,
+                is_paid: true,
+                paid_at: new Date().toISOString(),
+                paid_by_name: `Crédit prépayé partiel (Servi par ${adminName})`,
+                recorded_by_name: `${adminName} (Admin)`
+              });
+              itemsToInsert.push({
+                drink_id: item.drink_id,
+                quantity: 1,
+                price_at_time: due,
+                member_id: selectedMemberId,
+                is_paid: false,
+                recorded_by_name: `${adminName} (Admin)`
+              });
+            } else {
+              // Aucun crédit : ardoise normale
+              itemsToInsert.push({
+                drink_id: item.drink_id,
+                quantity: item.quantity,
+                price_at_time: item.price_at_time,
+                member_id: selectedMemberId,
+                is_paid: false,
+                recorded_by_name: `${adminName} (Admin)`
+              });
+            }
+          }
+
+          let { error: insertError } = await supabaseClient.from('consumptions').insert(itemsToInsert);
+          if (insertError && (insertError.message?.toLowerCase().includes('foreign key constraint') || insertError.code === '23503')) {
+            await ensureUserProfileExists({ id: selectedMemberId, email: memberProfile?.email });
+            const retry = await supabaseClient.from('consumptions').insert(itemsToInsert);
+            insertError = retry.error;
+          }
+          if (insertError) throw insertError;
+
+          if (remainingCredit !== memberCredit) {
+            await supabaseClient.from('profiles').update({ credit_balance: remainingCredit }).eq('id', selectedMemberId);
+          }
+        }
       }
-    }
 
-    toggleLoading(false);
-    window.closeBuvetteModal();
-    alert('Consommations validées avec succès !');
-    loadAppData(); 
+      // Décrémenter le stock des boissons
+      for (const item of selectedItems) {
+        const drink = drinks.find(d => String(d.id) === String(item.drink_id));
+        if (drink && drink.stock !== null && drink.stock !== undefined) {
+          const newStock = drink.stock - item.quantity;
+          await supabaseClient.from('drinks').update({ stock: newStock }).eq('id', drink.id);
+          drink.stock = newStock;
+        }
+      }
+
+      toggleLoading(false);
+      window.closeBuvetteModal();
+      alert('Consommations enregistrées avec succès !');
+      loadAppData();
+      if (typeof loadAdminData === 'function') loadAdminData();
+
+    } catch (err) {
+      toggleLoading(false);
+      alert("Erreur lors de l'enregistrement de la commande : " + err.message);
+    }
   };
 
   // Affichage du bouton Buvette pour tous les administrateurs
@@ -966,7 +1186,6 @@ function initNavigation() {
     btnConfirmDrink.addEventListener('click', async () => {
       if (!pendingDrinkOrder) return;
 
-      // On extrait immédiatement les données puis on vide la variable pour éviter tout double clic
       const order = pendingDrinkOrder;
       pendingDrinkOrder = null;
 
@@ -974,37 +1193,85 @@ function initNavigation() {
 
       if (drinkModal) drinkModal.classList.add('hidden');
       toggleLoading(true);
-      let { error } = await supabaseClient.from('consumptions').insert({
-        member_id: currentUser.id,
-        drink_id: id,
-        price_at_time: price,
-        quantity: quantity
-      });
+
+      const totalOrderPrice = price * quantity;
+      let currentCredit = parseFloat(currentUser.profile?.credit_balance) || 0;
+      let itemsToInsert = [];
+      let newCredit = currentCredit;
+
+      if (currentCredit >= totalOrderPrice) {
+        newCredit = currentCredit - totalOrderPrice;
+        itemsToInsert.push({
+          member_id: currentUser.id,
+          drink_id: id,
+          price_at_time: price,
+          quantity: quantity,
+          is_paid: true,
+          paid_at: new Date().toISOString(),
+          paid_by_name: 'Crédit prépayé',
+          recorded_by_name: 'Membre (smartphone)'
+        });
+      } else if (currentCredit > 0) {
+        const remainderDue = totalOrderPrice - currentCredit;
+        newCredit = 0;
+        itemsToInsert.push({
+          member_id: currentUser.id,
+          drink_id: id,
+          price_at_time: currentCredit,
+          quantity: 1,
+          is_paid: true,
+          paid_at: new Date().toISOString(),
+          paid_by_name: 'Crédit prépayé (partiel)',
+          recorded_by_name: 'Membre (smartphone)'
+        });
+        itemsToInsert.push({
+          member_id: currentUser.id,
+          drink_id: id,
+          price_at_time: remainderDue,
+          quantity: 1,
+          is_paid: false,
+          recorded_by_name: 'Membre (smartphone)'
+        });
+      } else {
+        itemsToInsert.push({
+          member_id: currentUser.id,
+          drink_id: id,
+          price_at_time: price,
+          quantity: quantity,
+          is_paid: false,
+          recorded_by_name: 'Membre (smartphone)'
+        });
+      }
+
+      let { error } = await supabaseClient.from('consumptions').insert(itemsToInsert);
 
       // Auto-réparation si profil manquant dans profiles (violation de clé étrangère)
       if (error && (error.message?.toLowerCase().includes('foreign key constraint') || error.code === '23503')) {
         console.warn("Erreur clé étrangère boisson détectée. Réparation automatique du profil...");
         await ensureUserProfileExists(currentUser);
-        const retry = await supabaseClient.from('consumptions').insert({
-          member_id: currentUser.id,
-          drink_id: id,
-          price_at_time: price,
-          quantity: quantity
-        });
+        const retry = await supabaseClient.from('consumptions').insert(itemsToInsert);
         error = retry.error;
       }
 
-      if (!error && drink && drink.stock !== null && drink.stock !== undefined) {
+      if (!error) {
+        // Mettre à jour credit_balance dans la base et localement si modifié
+        if (newCredit !== currentCredit) {
+          await supabaseClient.from('profiles').update({ credit_balance: newCredit }).eq('id', currentUser.id);
+          if (currentUser.profile) currentUser.profile.credit_balance = newCredit;
+        }
+
         // Décrémenter le stock
-        const newStock = drink.stock - quantity;
-        await supabaseClient.from('drinks').update({ stock: newStock }).eq('id', id);
+        if (drink && drink.stock !== null && drink.stock !== undefined) {
+          const newStock = drink.stock - quantity;
+          await supabaseClient.from('drinks').update({ stock: newStock }).eq('id', id);
+          drink.stock = newStock;
+        }
       }
 
       toggleLoading(false);
 
       if (error) {
         alert(error.message);
-        // En cas d'erreur de réseau, on permet de réessayer
         pendingDrinkOrder = order;
       } else {
         loadAppData();
@@ -1495,6 +1762,55 @@ document.getElementById('save-home-message-btn')?.addEventListener('click', asyn
   }
 });
 
+// --- SOLDE DISPLAY (CREDIT & ARDOISE) ---
+function updateSoldeDisplay() {
+  if (!currentUser) return;
+
+  const credit = parseFloat(currentUser.profile?.credit_balance) || 0;
+  const balance = parseFloat(currentUser.balance) || 0;
+
+  // 1. Carte solde sur l'accueil (#home-solde-card)
+  const homeLabel = document.getElementById('home-solde-label');
+  const homeValue = document.getElementById('home-solde-value');
+  if (homeValue) {
+    if (credit > 0) {
+      homeValue.textContent = `+${credit.toFixed(2)} €`;
+      homeValue.style.color = '#22c55e';
+      if (homeLabel) homeLabel.textContent = "Crédit Disponible (Cagnotte)";
+    } else if (balance > 0) {
+      homeValue.textContent = `-${balance.toFixed(2)} €`;
+      homeValue.style.color = '#ef4444';
+      if (homeLabel) homeLabel.textContent = "Ardoise Due";
+    } else {
+      homeValue.textContent = "0.00 €";
+      homeValue.style.color = "var(--text-muted)";
+      if (homeLabel) homeLabel.textContent = "Votre Solde Bar (À jour)";
+    }
+  }
+
+  // 2. Stat dans la section Consommations Club (#mem-balance)
+  const memBalanceEl = document.getElementById('mem-balance');
+  const memBalanceLabel = memBalanceEl?.previousElementSibling;
+  if (memBalanceEl) {
+    if (credit > 0) {
+      memBalanceEl.textContent = `+${credit.toFixed(2)} €`;
+      memBalanceEl.className = 'value success';
+      memBalanceEl.style.color = '#22c55e';
+      if (memBalanceLabel) memBalanceLabel.textContent = "Crédit Disponible";
+    } else if (balance > 0) {
+      memBalanceEl.textContent = `${balance.toFixed(2)} €`;
+      memBalanceEl.className = 'value danger';
+      memBalanceEl.style.color = '#ef4444';
+      if (memBalanceLabel) memBalanceLabel.textContent = "Ardoise Totale";
+    } else {
+      memBalanceEl.textContent = "0.00 €";
+      memBalanceEl.className = 'value';
+      memBalanceEl.style.color = 'var(--text-muted)';
+      if (memBalanceLabel) memBalanceLabel.textContent = "Ardoise Totale";
+    }
+  }
+}
+
 // --- UI RENDERING (MANAGEMENT) ---
 function renderManagementUI() {
   if (!currentUser) return;
@@ -1517,7 +1833,7 @@ function renderManagementUI() {
     }
   }
 
-  document.getElementById('mem-balance').textContent = `${currentUser.balance.toFixed(2)}€`;
+  updateSoldeDisplay();
 
 
 
@@ -1564,10 +1880,14 @@ async function loadHistory() {
     const formattedTime = dateObj.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
     const lineTotal = h.price_at_time * (h.quantity || 1);
 
+    const auditText = h.recorded_by_name && h.recorded_by_name !== 'Membre (smartphone)'
+      ? `<br><small class="text-muted" style="font-size:0.75rem;">Servi par : ${h.recorded_by_name}</small>`
+      : '';
+
     return `
         <tr class="unpaid-slate-row">
             <td>${formattedDate} à ${formattedTime}</td>
-            <td>${h.drinks?.name || 'Article'}${qtyText}</td>
+            <td>${h.drinks?.name || 'Article'}${qtyText}${auditText}</td>
             <td class="slate-due-high">${lineTotal.toFixed(2)}€</td>
         </tr>
     `;
@@ -1756,6 +2076,7 @@ async function loadAdminData() {
 
   // 1. Unified Members Fetch
   const { data: mems } = await supabaseClient.from('profiles').select('*, subscriptions(*, subscription_types(*)), consumptions(*)').order('full_name');
+  window.allMembersList = mems || [];
 
   // Remplir l'onglet Consommations / Ardoises
   const consBody = document.getElementById('admin-consumption-list');
@@ -1764,24 +2085,27 @@ async function loadAdminData() {
     mems?.forEach(m => {
       const unpaidCons = m.consumptions?.filter(c => !c.is_paid) || [];
       const balance = unpaidCons.reduce((acc, c) => acc + (c.price_at_time * (c.quantity || 1)), 0);
-      const lastSub = m.subscriptions?.sort((a, b) => new Date(b.end_date) - new Date(a.end_date))[0];
-
-      let subStatus = '<span class="badge badge-expired" style="font-size:0.7rem;">Aucun</span>';
-      if (lastSub) {
-        const isExpired = new Date(lastSub.end_date) < new Date();
-        subStatus = isExpired
-          ? `<span class="badge badge-expired" style="font-size:0.7rem;">Expiré (${new Date(lastSub.end_date).toLocaleDateString()})</span>`
-          : `<span class="badge badge-active" style="font-size:0.7rem;">Actif (${new Date(lastSub.end_date).toLocaleDateString()})</span>`;
-      }
+      const credit = parseFloat(m.credit_balance) || 0;
 
       const row = document.createElement('tr');
       if (balance > 0) {
         row.className = 'unpaid-slate-row';
+      } else if (credit > 0) {
+        row.style.background = 'rgba(34, 197, 94, 0.05)';
       } else {
         row.className = 'paid-slate-row';
       }
 
       const safeName = m.full_name.replace(/'/g, "\\'");
+
+      let soldeHtml = '';
+      if (credit > 0) {
+        soldeHtml = `<span class="badge" style="background: rgba(34, 197, 94, 0.2); color: #22c55e; font-weight: 700; font-size: 0.85rem;">+${credit.toFixed(2)} € (Crédit)</span>`;
+      } else if (balance > 0) {
+        soldeHtml = `<span class="badge" style="background: rgba(239, 68, 68, 0.2); color: #ef4444; font-weight: 700; font-size: 0.85rem;">-${balance.toFixed(2)} € (Ardoise)</span>`;
+      } else {
+        soldeHtml = `<span class="badge" style="background: rgba(255, 255, 255, 0.08); color: var(--text-muted); font-size: 0.85rem;">0.00 € (À jour)</span>`;
+      }
 
       row.innerHTML = `
             <td>
@@ -1789,18 +2113,26 @@ async function loadAdminData() {
                 <div style="width:32px; height:32px; border-radius:50%; background:rgba(34, 197, 94, 0.2); border: 1px solid rgba(34, 197, 94, 0.4); display:flex; align-items:center; justify-content:center; font-weight:bold; color:#22c55e;">
                   ${m.full_name.charAt(0).toUpperCase()}
                 </div>
-                <span>${m.full_name}</span>
+                <div style="display:flex; flex-direction:column;">
+                  <span style="font-weight:600;">${m.full_name}</span>
+                  ${m.role === 'admin' ? '<span class="badge badge-active" style="font-size:0.55rem; padding: 0.05rem 0.25rem; align-self:flex-start;">ADMIN</span>' : ''}
+                </div>
               </div>
             </td>
             <td style="font-size: 0.85rem;">${m.email || '<span class="text-muted">(non renseigné)</span>'}</td>
-            <td>${subStatus}</td>
-            <td class="${balance > 0 ? 'slate-due-high' : ''}">${balance.toFixed(2)}€</td>
-            <td>
-              <div style="display: flex; gap: 0.5rem;">
-                <button class="btn btn-outline" style="padding:4px 8px; font-size:0.8rem;" title="Historique & Détails" onclick="openMemberConsumptionDetails('${m.id}', '${safeName}')">
-                  <i data-lucide="eye" style="width:14px; height:14px; vertical-align:middle; margin-right:4px;"></i> Détails
+            <td>${soldeHtml}</td>
+            <td style="text-align: right;">
+              <div style="display: flex; gap: 0.4rem; justify-content: flex-end; flex-wrap: wrap;">
+                <button class="btn btn-main" style="padding:4px 9px; font-size:0.8rem; background: var(--accent-orange); display:inline-flex; align-items:center; gap:4px;" title="Servir des boissons au bar pour ce membre" onclick="openBuvetteForMember('${m.id}')">
+                  <i data-lucide="coffee" style="width:14px; height:14px;"></i> Servir
                 </button>
-                ${balance > 0 ? `<button class="btn btn-outline" style="border-color:#22c55e; color:#22c55e; padding:4px 8px; font-size:0.8rem;" title="Encaisser l'ardoise" onclick="clearMemberBalance('${m.id}')"><i data-lucide="check-circle" style="width:14px; height:14px; vertical-align:middle; margin-right:4px;"></i> Encaisser</button>` : ''}
+                <button class="btn btn-outline" style="border-color:#22c55e; color:#22c55e; padding:4px 9px; font-size:0.8rem; display:inline-flex; align-items:center; gap:4px;" title="Recharger le compte crédit d'avance" onclick="openCreditModal('${m.id}', '${safeName}', ${credit})">
+                  <i data-lucide="wallet" style="width:14px; height:14px;"></i> Créditer
+                </button>
+                <button class="btn btn-outline" style="padding:4px 9px; font-size:0.8rem; display:inline-flex; align-items:center; gap:4px;" title="Historique & Détails" onclick="openMemberConsumptionDetails('${m.id}', '${safeName}')">
+                  <i data-lucide="eye" style="width:14px; height:14px;"></i> Détails
+                </button>
+                ${balance > 0 ? `<button class="btn btn-outline" style="border-color:#ef4444; color:#ef4444; padding:4px 9px; font-size:0.8rem; display:inline-flex; align-items:center; gap:4px;" title="Encaisser l'ardoise complète" onclick="clearMemberBalance('${m.id}')"><i data-lucide="check-circle" style="width:14px; height:14px;"></i> Encaisser</button>` : ''}
               </div>
             </td>
           `;
@@ -1830,6 +2162,7 @@ async function loadAdminData() {
     const lastSub = m.subscriptions?.sort((a, b) => new Date(b.end_date) - new Date(a.end_date))[0];
     const unpaidCons = m.consumptions?.filter(c => !c.is_paid) || [];
     const balance = unpaidCons.reduce((acc, c) => acc + (c.price_at_time * (c.quantity || 1)), 0);
+    const credit = parseFloat(m.credit_balance) || 0;
 
     const j4Date = new Date();
     j4Date.setDate(j4Date.getDate() + 4);
@@ -1845,6 +2178,15 @@ async function loadAdminData() {
     const avatarHtml = m.avatar_url ?
       `<img src="${m.avatar_url}" style="width:64px; height:64px; border-radius:50%; object-fit:cover; border: 1px solid rgba(255,255,255,0.2);">` :
       `<div style="width:64px; height:64px; border-radius:50%; background:rgba(34, 197, 94, 0.2); border: 1px solid rgba(34, 197, 94, 0.4); display:flex; align-items:center; justify-content:center; font-weight:bold; color:#22c55e; font-size:1.5rem;">${m.full_name.charAt(0).toUpperCase()}</div>`;
+
+    let soldeDisplay = '';
+    if (credit > 0) {
+      soldeDisplay = `<span style="color:#22c55e; font-weight:700;">+${credit.toFixed(2)}€</span>`;
+    } else if (balance > 0) {
+      soldeDisplay = `<span class="text-danger font-bold">-${balance.toFixed(2)}€</span>`;
+    } else {
+      soldeDisplay = `<span class="text-muted">0.00€</span>`;
+    }
 
     row.innerHTML = `
           <td>
@@ -1873,18 +2215,19 @@ async function loadAdminData() {
               <span class="slider"></span>
             </label>
           </td>
-          <td class="${balance > 0 ? 'text-danger font-bold' : ''}">${balance.toFixed(2)}€</td>
+          <td>${soldeDisplay}</td>
           <td>
-            <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+            <div style="display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap;">
               <label style="font-size: 0.7rem; display: flex; align-items: center; gap: 0.2rem; cursor: pointer;" title="Accès gestion des stocks et réception de l'email hebdo">
                 <input type="checkbox" onchange="toggleStockRights('${m.id}', this.checked)" ${m.can_manage_stock ? 'checked' : ''}>
                 Gère Stocks
               </label>
-              ${balance > 0 ? `<button class="btn btn-outline" title="Encaisser" onclick="clearMemberBalance('${m.id}')"><i data-lucide="check-circle"></i></button>` : ''}
+              <button class="btn btn-outline" style="border-color:#22c55e; color:#22c55e; padding:3px 7px;" title="Créditer le compte" onclick="openCreditModal('${m.id}', '${safeName}', ${credit})"><i data-lucide="wallet" style="width:14px; height:14px;"></i></button>
+              ${balance > 0 ? `<button class="btn btn-outline" style="border-color:#ef4444; color:#ef4444; padding:3px 7px;" title="Encaisser" onclick="clearMemberBalance('${m.id}')"><i data-lucide="check-circle" style="width:14px; height:14px;"></i></button>` : ''}
               <button class="btn btn-outline" title="${m.role === 'admin' ? 'Rétrograder en membre simple' : 'Promouvoir Admin'}" onclick="toggleAdminRole('${m.id}', '${m.role}')">
-                <i data-lucide="${m.role === 'admin' ? 'shield-off' : 'shield'}" style="width: 16px; height: 16px;"></i>
+                <i data-lucide="${m.role === 'admin' ? 'shield-off' : 'shield'}" style="width: 14px; height: 14px;"></i>
               </button>
-              <button class="btn btn-outline btn-danger" title="Supprimer le profil" onclick="deleteProfile('${m.id}')"><i data-lucide="user-minus"></i></button>
+              <button class="btn btn-outline btn-danger" style="padding:3px 7px;" title="Supprimer le profil" onclick="deleteProfile('${m.id}')"><i data-lucide="user-minus" style="width:14px; height:14px;"></i></button>
             </div>
           </td>
         `;
@@ -2387,13 +2730,38 @@ document.getElementById('save-manual-member-btn').addEventListener('click', asyn
   }
 });
 
-// --- CSV EXPORT (Consommations & Stocks) ---
+// --- CSV / EXCEL EXPORT (Consommations, Stocks & Crédits avec Audit Admin) ---
 document.getElementById('export-stock-csv-btn')?.addEventListener('click', async () => {
   show('loading');
   try {
-    const { data: consData, error: consErr } = await supabaseClient.from('consumptions').select('*, profiles(full_name, email), drinks(name)').order('created_at', { ascending: false });
+    const { data: consData, error: consErr } = await supabaseClient
+      .from('consumptions')
+      .select('*, profiles(full_name, email), drinks(name)')
+      .order('created_at', { ascending: false });
+
     const { data: drinksData, error: drinksErr } = await supabaseClient.from('drinks').select('*');
-    const { data: movementsData, error: movErr } = await supabaseClient.from('stock_movements').select('*, profiles(full_name), drinks(name)').order('created_at', { ascending: false });
+    const { data: movementsData, error: movErr } = await supabaseClient
+      .from('stock_movements')
+      .select('*, profiles(full_name), drinks(name)')
+      .order('created_at', { ascending: false });
+
+    // Récupérer l'historique des rechargements de crédit pour l'audit
+    let creditTxData = [];
+    try {
+      const { data: txData } = await supabaseClient
+        .from('credit_transactions')
+        .select('*, profiles(full_name, email)')
+        .order('created_at', { ascending: false });
+      creditTxData = txData || [];
+    } catch (e) {
+      console.warn("Table credit_transactions non trouvée ou vide :", e);
+    }
+
+    // Récupérer tous les profils avec leurs soldes
+    const { data: allProfiles } = await supabaseClient
+      .from('profiles')
+      .select('id, full_name, email, credit_balance, consumptions(price_at_time, quantity, is_paid)')
+      .order('full_name');
 
     if (consErr) throw consErr;
     if (drinksErr) throw drinksErr;
@@ -2401,7 +2769,7 @@ document.getElementById('export-stock-csv-btn')?.addEventListener('click', async
 
     // 1. Stock Actuel
     const stocksDataArray = [["Boisson", "Stock Actuel", "Seuil Alerte"]];
-    drinksData.forEach(d => {
+    drinksData?.forEach(d => {
       stocksDataArray.push([d.name, d.stock || 0, d.alert_threshold || 0]);
     });
     const ws_stocks = XLSX.utils.aoa_to_sheet(stocksDataArray);
@@ -2423,9 +2791,9 @@ document.getElementById('export-stock-csv-btn')?.addEventListener('click', async
     }
     const ws_mov = XLSX.utils.aoa_to_sheet(movDataArray);
 
-    // 3. Historique Consommations
-    const consDataArray = [["Date", "Membre", "Email", "Boisson", "Quantité", "Prix Unitaire", "Total", "Payé", "Date d'encaissement", "Encaissé par"]];
-    consData.forEach(c => {
+    // 3. Historique Consommations (avec Audit Admin 'recorded_by_name')
+    const consDataArray = [["Date", "Membre", "Email", "Boisson", "Quantité", "Prix Unitaire", "Total", "Payé", "Date d'encaissement", "Encaissé par", "Servi / Enregistré par (Admin)"]];
+    consData?.forEach(c => {
       const date = new Date(c.created_at).toLocaleString('fr-FR');
       const member = c.profiles ? c.profiles.full_name : "Inconnu";
       const email = c.profiles ? c.profiles.email : "";
@@ -2443,17 +2811,60 @@ document.getElementById('export-stock-csv-btn')?.addEventListener('click', async
 
       const dateEncaissement = c.paid_at ? new Date(c.paid_at).toLocaleString('fr-FR') : (c.is_paid && price > 0 ? "Inconnue" : "");
       const encaissePar = c.paid_by_name || (c.is_paid && price > 0 ? "Inconnu" : "");
+      const serviPar = c.recorded_by_name || (c.is_paid && c.paid_by_name?.includes('Buvette') ? "Admin (Buvette)" : "Membre (smartphone)");
 
-      consDataArray.push([date, member, email, drink, qty, price, total, paid, dateEncaissement, encaissePar]);
+      consDataArray.push([date, member, email, drink, qty, price, total, paid, dateEncaissement, encaissePar, serviPar]);
     });
     const ws_cons = XLSX.utils.aoa_to_sheet(consDataArray);
+
+    // 4. Rechargements Crédits (Audit complet)
+    const creditDataArray = [["Date", "Membre", "Email", "Montant Rechargé (€)", "Moyen de Règlement", "Commentaire / Réf", "Rechargé par (Admin)"]];
+    if (creditTxData.length > 0) {
+      creditTxData.forEach(tx => {
+        const date = new Date(tx.created_at).toLocaleString('fr-FR');
+        const member = tx.profiles ? tx.profiles.full_name : "Inconnu";
+        const email = tx.profiles ? tx.profiles.email : "";
+        creditDataArray.push([
+          date,
+          member,
+          email,
+          parseFloat(tx.amount || 0).toFixed(2),
+          tx.payment_method || "Espèces",
+          tx.note || "",
+          tx.created_by_name || "Admin"
+        ]);
+      });
+    } else {
+      creditDataArray.push(["(Aucun rechargement enregistré)", "", "", "", "", "", ""]);
+    }
+    const ws_credits = XLSX.utils.aoa_to_sheet(creditDataArray);
+
+    // 5. Synthèse Soldes & Crédits
+    const summaryDataArray = [["Membre", "Email", "Ardoise Due (€)", "Crédit Disponible (€)", "Solde Net (€)"]];
+    allProfiles?.forEach(p => {
+      const unpaid = p.consumptions?.filter(c => !c.is_paid) || [];
+      const ardoise = unpaid.reduce((acc, c) => acc + ((c.price_at_time || 0) * (c.quantity || 1)), 0);
+      const credit = parseFloat(p.credit_balance) || 0;
+      const net = credit - ardoise;
+
+      summaryDataArray.push([
+        p.full_name || "Sans nom",
+        p.email || "",
+        ardoise.toFixed(2),
+        credit.toFixed(2),
+        (net >= 0 ? "+" : "") + net.toFixed(2)
+      ]);
+    });
+    const ws_summary = XLSX.utils.aoa_to_sheet(summaryDataArray);
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws_stocks, "État des Stocks");
     XLSX.utils.book_append_sheet(wb, ws_mov, "Historique Ajouts");
     XLSX.utils.book_append_sheet(wb, ws_cons, "Consommations");
+    XLSX.utils.book_append_sheet(wb, ws_credits, "Rechargements Crédits");
+    XLSX.utils.book_append_sheet(wb, ws_summary, "Synthèse Soldes");
 
-    XLSX.writeFile(wb, `export_stocks_consommations_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.writeFile(wb, `export_club_complet_${new Date().toISOString().split('T')[0]}.xlsx`);
 
   } catch (err) {
     alert("Erreur lors de l'export : " + err.message);
@@ -2461,6 +2872,181 @@ document.getElementById('export-stock-csv-btn')?.addEventListener('click', async
     hide('loading');
   }
 });
+
+// --- MODAL RECHARGEMENT DE CREDIT MEMBRE ---
+let activeCreditMember = null;
+
+window.openCreditModal = async function(memberId, memberName, currentCredit = 0) {
+  activeCreditMember = { id: memberId, name: memberName, credit: currentCredit };
+
+  const modal = document.getElementById('credit-modal');
+  const title = document.getElementById('credit-modal-title');
+  const desc = document.getElementById('credit-modal-desc');
+  const balanceSpan = document.getElementById('credit-modal-current-balance');
+  const amountInput = document.getElementById('credit-amount-input');
+  const noteInput = document.getElementById('credit-note-input');
+  const sigDiv = document.getElementById('credit-admin-signature');
+
+  if (!modal) return;
+
+  if (title) title.innerHTML = `<i data-lucide="wallet" style="color: #22c55e;"></i> Créditer le compte de <strong>${memberName}</strong>`;
+  if (desc) desc.textContent = `Ajouter du crédit d'avance (cagnotte) pour ${memberName}. Si le membre a une ardoise, elle sera apurée en priorité.`;
+  
+  // Récupérer le solde exact (ardoise et crédit)
+  const { data: unpaidCons } = await supabaseClient.from('consumptions').select('price_at_time, quantity').eq('member_id', memberId).eq('is_paid', false);
+  const balanceDue = unpaidCons?.reduce((acc, c) => acc + (c.price_at_time * (c.quantity || 1)), 0) || 0;
+  
+  const { data: prof } = await supabaseClient.from('profiles').select('credit_balance').eq('id', memberId).maybeSingle();
+  const exactCredit = parseFloat(prof?.credit_balance) || 0;
+  activeCreditMember.credit = exactCredit;
+  activeCreditMember.balanceDue = balanceDue;
+
+  if (balanceSpan) {
+    if (exactCredit > 0) {
+      balanceSpan.innerHTML = `<span style="color: #22c55e; font-weight:700;">+${exactCredit.toFixed(2)} € (Crédit disponible)</span>`;
+    } else if (balanceDue > 0) {
+      balanceSpan.innerHTML = `<span style="color: #ef4444; font-weight:700;">-${balanceDue.toFixed(2)} € (Ardoise en cours)</span>`;
+    } else {
+      balanceSpan.innerHTML = `<span style="color: var(--text-muted); font-weight:700;">0.00 € (À jour)</span>`;
+    }
+  }
+
+  if (amountInput) amountInput.value = '';
+  if (noteInput) noteInput.value = '';
+
+  const adminName = currentUser ? (currentUser.full_name || currentUser.profile?.full_name || currentUser.email) : 'Admin';
+  if (sigDiv) sigDiv.innerHTML = `Enregistré et audité par : <strong>${adminName}</strong>`;
+
+  modal.classList.remove('hidden');
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+};
+
+window.setCreditQuickAmount = function(amount) {
+  const input = document.getElementById('credit-amount-input');
+  if (input) {
+    input.value = amount.toFixed(2);
+    input.focus();
+  }
+};
+
+const btnSubmitCredit = document.getElementById('btn-submit-credit');
+if (btnSubmitCredit) {
+  btnSubmitCredit.addEventListener('click', async () => {
+    if (!activeCreditMember) return;
+
+    const amountInput = document.getElementById('credit-amount-input');
+    const amountVal = parseFloat(amountInput?.value);
+
+    if (isNaN(amountVal) || amountVal <= 0) {
+      alert("Veuillez saisir un montant valide (supérieur à 0 €).");
+      return;
+    }
+
+    const methodSelect = document.getElementById('credit-payment-method');
+    const paymentMethod = methodSelect ? methodSelect.value : 'Espèces';
+
+    const noteInput = document.getElementById('credit-note-input');
+    const noteVal = noteInput ? noteInput.value.trim() : '';
+
+    const adminName = currentUser ? (currentUser.full_name || currentUser.profile?.full_name || currentUser.email) : 'Admin';
+
+    toggleLoading(true);
+
+    try {
+      const memberId = activeCreditMember.id;
+      let amountToApply = amountVal;
+
+      // 1. Apurement des ardoises en attente si existantes
+      const { data: unpaidList } = await supabaseClient
+        .from('consumptions')
+        .select('*')
+        .eq('member_id', memberId)
+        .eq('is_paid', false)
+        .order('created_at', { ascending: true });
+
+      if (unpaidList && unpaidList.length > 0) {
+        let runningRemaining = amountToApply;
+
+        for (const c of unpaidList) {
+          const cost = c.price_at_time * (c.quantity || 1);
+          if (runningRemaining >= cost) {
+            runningRemaining -= cost;
+            await supabaseClient
+              .from('consumptions')
+              .update({
+                is_paid: true,
+                paid_at: new Date().toISOString(),
+                paid_by_name: `Règlement Recharge (${paymentMethod} - ${adminName})`
+              })
+              .eq('id', c.id);
+          } else if (runningRemaining > 0) {
+            const partialPaid = runningRemaining;
+            const unpaidRest = cost - runningRemaining;
+            runningRemaining = 0;
+
+            await supabaseClient
+              .from('consumptions')
+              .update({ price_at_time: unpaidRest, quantity: 1 })
+              .eq('id', c.id);
+
+            await supabaseClient
+              .from('consumptions')
+              .insert({
+                member_id: memberId,
+                drink_id: c.drink_id,
+                price_at_time: partialPaid,
+                quantity: 1,
+                is_paid: true,
+                paid_at: new Date().toISOString(),
+                paid_by_name: `Règlement partiel Recharge (${paymentMethod} - ${adminName})`,
+                recorded_by_name: c.recorded_by_name || `${adminName} (Admin)`
+              });
+          }
+        }
+
+        amountToApply = runningRemaining;
+      }
+
+      // 2. Le reste est crédité au solde du membre (profiles.credit_balance)
+      const currentCredit = activeCreditMember.credit || 0;
+      const newCreditTotal = currentCredit + amountToApply;
+
+      const { error: profErr } = await supabaseClient
+        .from('profiles')
+        .update({ credit_balance: newCreditTotal })
+        .eq('id', memberId);
+
+      if (profErr) throw profErr;
+
+      // 3. Enregistrement dans la table d'audit credit_transactions
+      try {
+        await supabaseClient
+          .from('credit_transactions')
+          .insert({
+            member_id: memberId,
+            amount: amountVal,
+            payment_method: paymentMethod,
+            note: noteVal || null,
+            created_by_name: `${adminName} (Admin)`
+          });
+      } catch (txErr) {
+        console.warn("Table credit_transactions non encore créée :", txErr);
+      }
+
+      closeModal('credit-modal');
+      alert(`Compte de ${activeCreditMember.name} crédité de ${amountVal.toFixed(2)} € avec succès (${paymentMethod}) !`);
+
+      loadAppData();
+      if (typeof loadAdminData === 'function') loadAdminData();
+
+    } catch (err) {
+      alert("Erreur lors du rechargement de crédit : " + err.message);
+    } finally {
+      toggleLoading(false);
+    }
+  });
+}
+
 async function clearMemberBalance(memberId) {
   if (!confirm("Marquer TOUTE l'ardoise comme payée pour ce membre ?")) return;
 
@@ -2500,12 +3086,26 @@ async function openMemberConsumptionDetails(memberId, memberName) {
 
     if (error) throw error;
 
+    // Récupérer le solde de crédit actuel
+    const { data: memberProfile } = await supabaseClient
+      .from('profiles')
+      .select('credit_balance')
+      .eq('id', memberId)
+      .maybeSingle();
+
+    const creditBalance = parseFloat(memberProfile?.credit_balance) || 0;
+
     const unpaidList = consumptions?.filter(c => !c.is_paid) || [];
     const paidList = consumptions?.filter(c => c.is_paid) || [];
 
     const totalDue = unpaidList.reduce((acc, c) => acc + (c.price_at_time * (c.quantity || 1)), 0);
 
-    document.getElementById('consumption-detail-title').innerHTML = `<i data-lucide="coffee" style="width:20px;height:20px;vertical-align:middle;margin-right:6px;"></i> Consommations de <strong>${memberName}</strong>`;
+    let creditHeaderHtml = '';
+    if (creditBalance > 0) {
+      creditHeaderHtml = ` <span class="badge" style="background: rgba(34, 197, 94, 0.2); color: #22c55e; font-size: 0.85rem; margin-left: 8px;">Crédit disponible : +${creditBalance.toFixed(2)} €</span>`;
+    }
+
+    document.getElementById('consumption-detail-title').innerHTML = `<i data-lucide="coffee" style="width:20px;height:20px;vertical-align:middle;margin-right:6px;"></i> Consommations de <strong>${memberName}</strong>${creditHeaderHtml}`;
     document.getElementById('detail-total-due').textContent = `${totalDue.toFixed(2)}€`;
 
     const unpaidBody = document.getElementById('detail-unpaid-list');
@@ -2517,10 +3117,11 @@ async function openMemberConsumptionDetails(memberId, memberName) {
         const dateObj = new Date(c.created_at);
         const formattedDate = `${dateObj.toLocaleDateString('fr-FR')} à ${dateObj.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
         const lineTotal = c.price_at_time * (c.quantity || 1);
+        const auditText = c.recorded_by_name ? `<br><small class="text-muted" style="font-size:0.75rem;">Enregistré par : ${c.recorded_by_name}</small>` : '';
         return `
             <tr>
               <td>${formattedDate}</td>
-              <td>${c.drinks?.name || 'Article'}${qtyText}</td>
+              <td>${c.drinks?.name || 'Article'}${qtyText}${auditText}</td>
               <td class="text-danger" style="font-weight:600;">${lineTotal.toFixed(2)}€</td>
             </tr>
           `;
@@ -2536,10 +3137,15 @@ async function openMemberConsumptionDetails(memberId, memberName) {
         const dateObj = new Date(c.created_at);
         const formattedDate = `${dateObj.toLocaleDateString('fr-FR')} à ${dateObj.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
         const lineTotal = c.price_at_time * (c.quantity || 1);
+        const auditDetails = [];
+        if (c.recorded_by_name) auditDetails.push(`Servi par : ${c.recorded_by_name}`);
+        if (c.paid_by_name) auditDetails.push(`Règlement : ${c.paid_by_name}`);
+        const auditText = auditDetails.length > 0 ? `<br><small class="text-muted" style="font-size:0.75rem;">${auditDetails.join(' | ')}</small>` : '';
+
         return `
             <tr>
               <td>${formattedDate}</td>
-              <td>${c.drinks?.name || 'Article'}${qtyText}</td>
+              <td>${c.drinks?.name || 'Article'}${qtyText}${auditText}</td>
               <td class="text-success" style="font-weight:600;">${lineTotal.toFixed(2)}€</td>
             </tr>
           `;

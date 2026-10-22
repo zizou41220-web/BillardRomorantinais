@@ -209,7 +209,7 @@
           <i data-lucide="log-out" style="width: 14px; height: 14px;"></i> Se déconnecter
         </button>
         <div style="text-align: center; margin-top: 1rem; font-size: 0.75rem; color: rgba(255, 255, 255, 0.3);">
-          v2.8.1
+          v2.8.2
         </div>
       </div>
     </nav>
@@ -245,7 +245,7 @@
           <div class="logo-circle-mini">
             <img src="Logo.jpg" alt="BC41" onerror="this.style.display='none'">
           </div>
-          <span class="mobile-title">Billard Blackball Romorantinais <span style="font-size:0.65rem; color:var(--text-muted); font-weight:normal;">v2.8.1</span></span>
+          <span class="mobile-title">Billard Blackball Romorantinais <span style="font-size:0.65rem; color:var(--text-muted); font-weight:normal;">v2.8.2</span></span>
         </div>
 
         <div class="user-profile" id="user-profile-menu-trigger">
@@ -277,6 +277,17 @@
             <div class="hero-text">
               <h2>Bienvenue au BILLARD BLACKBALL ROMORANTINAIS</h2>
             </div>
+          </div>
+
+          <!-- Carte Solde Personnel (Crédit / Ardoise) -->
+          <div id="home-solde-card" class="card" style="margin-top: 1.25rem; display: flex; justify-content: space-between; align-items: center; padding: 1.15rem 1.4rem; border-radius: 12px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.1); flex-wrap: wrap; gap: 1rem;">
+            <div>
+              <span id="home-solde-label" style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; display: block; margin-bottom: 0.25rem;">Votre Solde Bar</span>
+              <span id="home-solde-value" style="font-size: 1.6rem; font-weight: 700; color: #22c55e;">0.00 €</span>
+            </div>
+            <button class="btn btn-main" onclick="showView('section-management')" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 1.1rem;">
+              <i data-lucide="coffee"></i> Consommer
+            </button>
           </div>
 
           <!-- Bouton Edit Admin -->
@@ -949,8 +960,8 @@
                   <tr>
                     <th>Membre</th>
                     <th>Email</th>
-                    <th>Ardoise Actuelle</th>
-                    <th>Actions</th>
+                    <th>Solde / Ardoise</th>
+                    <th style="text-align: right;">Actions Bar & Crédit</th>
                   </tr>
                 </thead>
                 <tbody id="admin-consumption-list">
@@ -1413,10 +1424,37 @@
     <div class="modal-content"
       style="max-width: 600px; width: 100%; max-height: 90vh; display: flex; flex-direction: column;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-        <h3 style="margin: 0;"><i data-lucide="shopping-cart"></i> Buvette (Externes)</h3>
+        <h3 style="margin: 0;" id="buvette-modal-title"><i data-lucide="shopping-cart"></i> Mode Bar & Buvette</h3>
         <button onclick="closeBuvetteModal()" class="btn-close"
           style="background: none; border: none; color: var(--text-muted); cursor: pointer;"><i
             data-lucide="x"></i></button>
+      </div>
+
+      <!-- Sélecteur Client : Vente externe ou Membre du Club -->
+      <div style="background: rgba(255, 255, 255, 0.05); padding: 0.85rem; border-radius: 8px; margin-bottom: 1rem; border: 1px solid rgba(255,255,255,0.1);">
+        <label style="display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.4rem; font-weight: 600;">
+          <i data-lucide="user-check" style="width: 14px; height: 14px; vertical-align: middle;"></i> Servir pour :
+        </label>
+        <select id="buvette-member-select" onchange="onBuvetteMemberChanged()" style="width: 100%; padding: 0.6rem; border-radius: 6px; background: #0f172a; border: 1px solid rgba(255,255,255,0.2); color: white; font-size: 0.95rem;">
+          <option value="">🛒 Vente Externe / Buvette (Recette générale)</option>
+          <!-- Injecté dynamiquement par JS -->
+        </select>
+        
+        <div id="buvette-member-info" class="hidden" style="margin-top: 0.6rem; padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.06);">
+          <span>Solde actuel du membre :</span>
+          <span id="buvette-member-solde" style="font-weight: 700;">0.00 €</span>
+        </div>
+
+        <div id="buvette-payment-type-group" class="hidden" style="margin-top: 0.6rem; display: flex; gap: 1rem; font-size: 0.85rem; flex-wrap: wrap;">
+          <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer;">
+            <input type="radio" name="buvette-payment-mode" value="auto" checked>
+            <span>💳 Déduire du crédit / Mettre sur ardoise</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer;">
+            <input type="radio" name="buvette-payment-mode" value="paid_now">
+            <span>💵 Encaissé en direct (Espèces / CB)</span>
+          </label>
+        </div>
       </div>
       <div class="table-scroll" style="flex: 1; overflow-y: auto; margin-bottom: 1rem;">
         <table style="width: 100%;">
@@ -1446,6 +1484,66 @@
         onclick="validateBuvetteOrder()">
         <i data-lucide="check-circle"></i> Valider les consommations
       </button>
+    </div>
+  </div>
+
+  <!-- Modal Rechargement de Crédit Membre -->
+  <div id="credit-modal" class="modal-overlay hidden">
+    <div class="modal-card" style="max-width: 480px; width: 100%;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h3 id="credit-modal-title" style="margin: 0; display: flex; align-items: center; gap: 0.5rem;">
+          <i data-lucide="wallet" style="color: #22c55e;"></i> Créditer un compte
+        </h3>
+        <button onclick="closeModal('credit-modal')" class="btn-close" style="background: none; border: none; color: var(--text-muted); cursor: pointer;"><i data-lucide="x"></i></button>
+      </div>
+
+      <p class="modal-description" id="credit-modal-desc">Ajouter de l'argent d'avance pour le membre.</p>
+
+      <div style="background: rgba(255, 255, 255, 0.05); padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1.2rem; display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 0.9rem; color: var(--text-muted);">Solde actuel :</span>
+        <span id="credit-modal-current-balance" style="font-size: 1.1rem; font-weight: 700;">0.00 €</span>
+      </div>
+
+      <div class="form-group" style="margin-bottom: 1rem;">
+        <label style="display: block; font-size: 0.85rem; margin-bottom: 0.4rem; color: var(--text-muted);">Montant à créditer (€) *</label>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+          <input type="number" id="credit-amount-input" step="0.5" min="0.5" placeholder="Ex: 20.00" required style="flex: 1; padding: 0.7rem; font-size: 1.2rem; font-weight: 700; border-radius: 6px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2); color: white;">
+          <span style="font-size: 1.2rem; font-weight: 700; color: #22c55e;">€</span>
+        </div>
+        <!-- Raccourcis de montants rapides -->
+        <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+          <button type="button" class="btn-alt" style="padding: 4px 10px; font-size: 0.8rem;" onclick="setCreditQuickAmount(10)">+10 €</button>
+          <button type="button" class="btn-alt" style="padding: 4px 10px; font-size: 0.8rem;" onclick="setCreditQuickAmount(20)">+20 €</button>
+          <button type="button" class="btn-alt" style="padding: 4px 10px; font-size: 0.8rem;" onclick="setCreditQuickAmount(30)">+30 €</button>
+          <button type="button" class="btn-alt" style="padding: 4px 10px; font-size: 0.8rem;" onclick="setCreditQuickAmount(50)">+50 €</button>
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom: 1rem;">
+        <label style="display: block; font-size: 0.85rem; margin-bottom: 0.4rem; color: var(--text-muted);">Moyen de règlement *</label>
+        <select id="credit-payment-method" style="width: 100%; padding: 0.6rem; border-radius: 6px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2); color: white;">
+          <option value="Espèces" selected>💵 Espèces</option>
+          <option value="Chèque">📝 Chèque</option>
+          <option value="Carte Bancaire">💳 Carte Bancaire</option>
+          <option value="Virement">🏦 Virement</option>
+        </select>
+      </div>
+
+      <div class="form-group" style="margin-bottom: 1.5rem;">
+        <label style="display: block; font-size: 0.85rem; margin-bottom: 0.4rem; color: var(--text-muted);">Commentaire / Référence (optionnel)</label>
+        <input type="text" id="credit-note-input" placeholder="Ex: Chèque n°12345, remis au bar..." style="width: 100%; padding: 0.6rem; border-radius: 6px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2); color: white;">
+      </div>
+
+      <div id="credit-admin-signature" style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem; font-style: italic;">
+        <!-- Injecté : Enregistré par : [Admin] -->
+      </div>
+
+      <div style="display: flex; gap: 0.8rem; justify-content: flex-end;">
+        <button type="button" class="btn-alt" onclick="closeModal('credit-modal')">Annuler</button>
+        <button type="button" id="btn-submit-credit" class="btn-main font-weight-bold" style="background: #22c55e;">
+          <i data-lucide="check"></i> Confirmer le rechargement
+        </button>
+      </div>
     </div>
   </div>
 
@@ -1515,7 +1613,7 @@
     src="https://connect.facebook.net/fr_FR/sdk.js#xfbml=1&version=v17.0"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <script src="tournaments.js?v=2.4.8" defer></script>
-  <script src="app.js?v=2.9.11" defer></script>
+  <script src="app.js?v=2.9.12" defer></script>
   <script>
     // Initialisation des icônes Lucide
     lucide.createIcons();
