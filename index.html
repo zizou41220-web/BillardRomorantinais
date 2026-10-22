@@ -285,7 +285,7 @@
               <span id="home-solde-label" style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; display: block; margin-bottom: 0.25rem;">Votre Solde Bar</span>
               <span id="home-solde-value" style="font-size: 1.6rem; font-weight: 700; color: #22c55e;">0.00 €</span>
             </div>
-            <button class="btn btn-main" onclick="showView('section-management')" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 1.1rem;">
+            <button class="btn btn-main" onclick="switchSection('management')" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 1.1rem;">
               <i data-lucide="coffee"></i> Consommer
             </button>
           </div>
@@ -323,9 +323,27 @@
             </div>
             <div class="quick-stats">
               <div class="stat-item">
-                <span class="label">Ardoise Totale</span>
+                <span class="label" id="mem-balance-label">Ardoise Totale</span>
                 <span class="value danger" id="mem-balance">0.00€</span>
               </div>
+            </div>
+          </div>
+
+          <!-- Bannière Service au Bar par Admin (en lieu et place du membre) -->
+          <div id="serving-member-banner" class="hidden" style="background: rgba(37, 99, 235, 0.15); border: 2px solid #3b82f6; border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);">
+            <div style="display: flex; align-items: center; gap: 0.85rem;">
+              <div style="width: 44px; height: 44px; border-radius: 50%; background: #2563eb; color: white; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; box-shadow: 0 2px 6px rgba(37, 99, 235, 0.5);">
+                <i data-lucide="coffee"></i>
+              </div>
+              <div>
+                <span style="font-size: 0.8rem; text-transform: uppercase; color: #93c5fd; font-weight: 700; letter-spacing: 0.5px; display: block;">Mode Service au Bar (Admin)</span>
+                <span style="font-size: 1.15rem; font-weight: 700; color: #ffffff;">Vous enregistrez pour : <strong id="serving-member-name" style="color: #60a5fa;"></strong></span>
+              </div>
+            </div>
+            <div style="display: flex; gap: 0.6rem; align-items: center;">
+              <button type="button" class="btn btn-outline" onclick="exitServingMemberMode()" style="border-color: #ef4444; color: #fca5a5; display: inline-flex; align-items: center; gap: 6px; padding: 0.5rem 1rem; font-weight: 600;">
+                <i data-lucide="arrow-left"></i> Revenir à l'Admin
+              </button>
             </div>
           </div>
 
@@ -341,7 +359,7 @@
 
             <!-- Colonne Historique -->
             <div class="card history-card">
-              <h3><i data-lucide="receipt"></i> Ardoise en attente</h3>
+              <h3><i data-lucide="receipt"></i> <span id="management-history-title">Ardoise en attente</span></h3>
               <div class="table-wrapper">
                 <table>
                   <thead>
@@ -1616,7 +1634,7 @@
     src="https://connect.facebook.net/fr_FR/sdk.js#xfbml=1&version=v17.0"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <script src="tournaments.js?v=2.4.8" defer></script>
-  <script src="app.js?v=2.9.13" defer></script>
+  <script src="app.js?v=2.9.14" defer></script>
   <script>
     // Initialisation des icônes Lucide
     lucide.createIcons();

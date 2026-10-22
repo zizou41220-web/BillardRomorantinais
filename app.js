@@ -694,8 +694,67 @@ function applyRoleAccessControl() {
     if (typeof lucide !== 'undefined') lucide.createIcons();
   };
 
+  // --- SERVICE AU BAR EN LIEU ET PLACE D'UN MEMBRE ---
+  window.servingMemberTarget = null;
+
   window.openBuvetteForMember = async function(memberId) {
-    await window.openBuvetteModal(memberId);
+    let member = window.allMembersList?.find(m => m.id === memberId);
+    if (!member) {
+      try {
+        const { data } = await supabaseClient.from('profiles').select('*').eq('id', memberId).maybeSingle();
+        member = data;
+      } catch (err) {
+        console.warn("Erreur profil:", err);
+      }
+    }
+    if (!member) {
+      alert("Membre introuvable.");
+      return;
+    }
+
+    // Récupérer son ardoise et crédit à jour depuis Supabase
+    try {
+      const { data: unpaidCons } = await supabaseClient
+        .from('consumptions')
+        .select('*')
+        .eq('member_id', member.id)
+        .eq('is_paid', false);
+      member.balance = unpaidCons?.reduce((acc, c) => acc + (c.price_at_time * (c.quantity || 1)), 0) || 0;
+
+      const { data: prof } = await supabaseClient
+        .from('profiles')
+        .select('credit_balance')
+        .eq('id', member.id)
+        .maybeSingle();
+      if (prof && prof.credit_balance !== undefined && prof.credit_balance !== null) {
+        member.credit_balance = prof.credit_balance;
+      }
+    } catch (err) {
+      console.warn("Erreur actualisation solde membre:", err);
+    }
+
+    // Activer la cible de service
+    window.servingMemberTarget = member;
+
+    // Basculer vers l'onglet "Consommations Club"
+    switchSection('management');
+
+    // Mettre à jour l'interface Consommations Club pour ce membre
+    renderManagementUI();
+
+    // Défiler vers le haut pour voir la bannière de commande
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  window.serveDrinksForMember = window.openBuvetteForMember;
+
+  window.exitServingMemberMode = function() {
+    window.servingMemberTarget = null;
+    const banner = document.getElementById('serving-member-banner');
+    if (banner) banner.classList.add('hidden');
+
+    switchSection('admin');
+    loadAppData();
+    if (typeof loadAdminData === 'function') loadAdminData();
   };
 
   window.openBuvetteModal = async function(preselectedMemberId = null) {
@@ -1171,6 +1230,7 @@ function initNavigation() {
         pendingDrinkOrder.quantity--;
         drinkConfirmQty.textContent = pendingDrinkOrder.quantity;
         drinkConfirmTotal.textContent = `${(pendingDrinkOrder.price * pendingDrinkOrder.quantity).toFixed(2)}€`;
+        if (typeof updateDrinkModalNotice === 'function') updateDrinkModalNotice(pendingDrinkOrder);
       }
     });
 
@@ -1179,6 +1239,7 @@ function initNavigation() {
       pendingDrinkOrder.quantity++;
       drinkConfirmQty.textContent = pendingDrinkOrder.quantity;
       drinkConfirmTotal.textContent = `${(pendingDrinkOrder.price * pendingDrinkOrder.quantity).toFixed(2)}€`;
+      if (typeof updateDrinkModalNotice === 'function') updateDrinkModalNotice(pendingDrinkOrder);
     });
   }
 
@@ -1195,51 +1256,59 @@ function initNavigation() {
       toggleLoading(true);
 
       const totalOrderPrice = price * quantity;
-      let currentCredit = parseFloat(currentUser.profile?.credit_balance) || 0;
+      const targetUser = window.servingMemberTarget || currentUser;
+      const isServingOther = !!window.servingMemberTarget;
+      const adminName = currentUser ? (currentUser.full_name || currentUser.profile?.full_name || currentUser.email) : 'Admin';
+
+      let currentCredit = parseFloat(isServingOther ? targetUser.credit_balance : (currentUser.profile?.credit_balance ?? targetUser.credit_balance)) || 0;
       let itemsToInsert = [];
       let newCredit = currentCredit;
+
+      const recordedBy = isServingOther ? `${adminName} (Admin)` : 'Membre (smartphone)';
+      const paidByFull = isServingOther ? `Crédit prépayé (Servi par ${adminName})` : 'Crédit prépayé';
+      const paidByPartial = isServingOther ? `Crédit prépayé partiel (Servi par ${adminName})` : 'Crédit prépayé (partiel)';
 
       if (currentCredit >= totalOrderPrice) {
         newCredit = currentCredit - totalOrderPrice;
         itemsToInsert.push({
-          member_id: currentUser.id,
+          member_id: targetUser.id,
           drink_id: id,
           price_at_time: price,
           quantity: quantity,
           is_paid: true,
           paid_at: new Date().toISOString(),
-          paid_by_name: 'Crédit prépayé',
-          recorded_by_name: 'Membre (smartphone)'
+          paid_by_name: paidByFull,
+          recorded_by_name: recordedBy
         });
       } else if (currentCredit > 0) {
         const remainderDue = totalOrderPrice - currentCredit;
         newCredit = 0;
         itemsToInsert.push({
-          member_id: currentUser.id,
+          member_id: targetUser.id,
           drink_id: id,
           price_at_time: currentCredit,
           quantity: 1,
           is_paid: true,
           paid_at: new Date().toISOString(),
-          paid_by_name: 'Crédit prépayé (partiel)',
-          recorded_by_name: 'Membre (smartphone)'
+          paid_by_name: paidByPartial,
+          recorded_by_name: recordedBy
         });
         itemsToInsert.push({
-          member_id: currentUser.id,
+          member_id: targetUser.id,
           drink_id: id,
           price_at_time: remainderDue,
           quantity: 1,
           is_paid: false,
-          recorded_by_name: 'Membre (smartphone)'
+          recorded_by_name: recordedBy
         });
       } else {
         itemsToInsert.push({
-          member_id: currentUser.id,
+          member_id: targetUser.id,
           drink_id: id,
           price_at_time: price,
           quantity: quantity,
           is_paid: false,
-          recorded_by_name: 'Membre (smartphone)'
+          recorded_by_name: recordedBy
         });
       }
 
@@ -1248,7 +1317,7 @@ function initNavigation() {
       // Auto-réparation si profil manquant dans profiles (violation de clé étrangère)
       if (error && (error.message?.toLowerCase().includes('foreign key constraint') || error.code === '23503')) {
         console.warn("Erreur clé étrangère boisson détectée. Réparation automatique du profil...");
-        await ensureUserProfileExists(currentUser);
+        await ensureUserProfileExists(targetUser);
         const retry = await supabaseClient.from('consumptions').insert(itemsToInsert);
         error = retry.error;
       }
@@ -1256,8 +1325,13 @@ function initNavigation() {
       if (!error) {
         // Mettre à jour credit_balance dans la base et localement si modifié
         if (newCredit !== currentCredit) {
-          await supabaseClient.from('profiles').update({ credit_balance: newCredit }).eq('id', currentUser.id);
-          if (currentUser.profile) currentUser.profile.credit_balance = newCredit;
+          try {
+            await supabaseClient.from('profiles').update({ credit_balance: newCredit }).eq('id', targetUser.id);
+          } catch (e) {
+            console.warn("Erreur update credit_balance :", e);
+          }
+          targetUser.credit_balance = newCredit;
+          if (!isServingOther && currentUser.profile) currentUser.profile.credit_balance = newCredit;
         }
 
         // Décrémenter le stock
@@ -1274,7 +1348,21 @@ function initNavigation() {
         alert(error.message);
         pendingDrinkOrder = order;
       } else {
-        loadAppData();
+        if (isServingOther) {
+          try {
+            const { data: unpaidCons } = await supabaseClient
+              .from('consumptions')
+              .select('*')
+              .eq('member_id', targetUser.id)
+              .eq('is_paid', false);
+            targetUser.balance = unpaidCons?.reduce((acc, c) => acc + (c.price_at_time * (c.quantity || 1)), 0) || 0;
+          } catch (e) {}
+
+          alert(`✅ ${quantity}x ${name} enregistrée(s) pour ${targetUser.full_name} !`);
+          renderManagementUI();
+        } else {
+          loadAppData();
+        }
       }
     });
   }
@@ -1458,6 +1546,13 @@ function switchSection(name) {
     name = 'home';
   }
 
+  // Si on quitte l'onglet Consommations Club alors qu'on servait un membre, on désactive le mode
+  if (name !== 'management' && window.servingMemberTarget) {
+    window.servingMemberTarget = null;
+    const banner = document.getElementById('serving-member-banner');
+    if (banner) banner.classList.add('hidden');
+  }
+
   document.querySelectorAll('.nav-menu li').forEach(i => i.classList.remove('active'));
   const sidebarItem = document.querySelector(`.nav-menu li[data-section="${name}"]`);
   if (sidebarItem) sidebarItem.classList.add('active');
@@ -1469,6 +1564,7 @@ function switchSection(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById(`section-${name}`).classList.add('active');
 
+  if (name === 'management') renderManagementUI();
   if (name === 'admin') loadAdminData();
   if (name === 'tournaments') initTournamentsModule();
 }
@@ -1762,51 +1858,87 @@ document.getElementById('save-home-message-btn')?.addEventListener('click', asyn
   }
 });
 
+// --- NOTIFICATION & EXPLICATION DANS LA MODALE DE COMMANDE ---
+function updateDrinkModalNotice(order) {
+  const noticeEl = document.querySelector('.drink-confirm-notice');
+  if (!noticeEl || !order) return;
+  const totalPrice = order.price * order.quantity;
+
+  if (window.servingMemberTarget) {
+    const targetName = window.servingMemberTarget.full_name || 'le membre';
+    const credit = parseFloat(window.servingMemberTarget.credit_balance) || 0;
+    if (credit >= totalPrice) {
+      noticeEl.innerHTML = `<span style="color:#60a5fa; font-weight:700;">🍺 Mode Service Admin :</span> Enregistré pour <strong>${targetName}</strong>.<br><span style="color:#22c55e; font-weight:600;">Sera déduit de son crédit prépayé disponible (${credit.toFixed(2)}€).</span>`;
+    } else if (credit > 0) {
+      const rest = totalPrice - credit;
+      noticeEl.innerHTML = `<span style="color:#60a5fa; font-weight:700;">🍺 Mode Service Admin :</span> Enregistré pour <strong>${targetName}</strong>.<br><span style="color:#f59e0b; font-weight:600;">${credit.toFixed(2)}€ déduits de son crédit, et ${rest.toFixed(2)}€ ajoutés à son ardoise.</span>`;
+    } else {
+      noticeEl.innerHTML = `<span style="color:#60a5fa; font-weight:700;">🍺 Mode Service Admin :</span> Enregistré pour <strong>${targetName}</strong>.<br><span style="color:#ef4444; font-weight:600;">${totalPrice.toFixed(2)}€ ajoutés directement à son ardoise due.</span>`;
+    }
+  } else {
+    const userCredit = parseFloat(currentUser?.profile?.credit_balance) || 0;
+    if (userCredit >= totalPrice) {
+      noticeEl.innerHTML = `Sera débité de votre cagnotte de crédit disponible (<strong style="color:#22c55e;">+${userCredit.toFixed(2)}€</strong>).`;
+    } else if (userCredit > 0) {
+      const rest = totalPrice - userCredit;
+      noticeEl.innerHTML = `Votre crédit restant (<strong style="color:#22c55e;">+${userCredit.toFixed(2)}€</strong>) sera utilisé, et ${rest.toFixed(2)}€ seront ajoutés à votre ardoise.`;
+    } else {
+      noticeEl.textContent = "Le montant de cet achat sera ajouté à votre ardoise.";
+    }
+  }
+}
+
 // --- SOLDE DISPLAY (CREDIT & ARDOISE) ---
 function updateSoldeDisplay() {
   if (!currentUser) return;
 
-  const credit = parseFloat(currentUser.profile?.credit_balance) || 0;
-  const balance = parseFloat(currentUser.balance) || 0;
+  const target = window.servingMemberTarget || currentUser;
+  const isServing = !!window.servingMemberTarget;
 
-  // 1. Carte solde sur l'accueil (#home-solde-card)
-  const homeLabel = document.getElementById('home-solde-label');
-  const homeValue = document.getElementById('home-solde-value');
-  if (homeValue) {
-    if (credit > 0) {
-      homeValue.textContent = `+${credit.toFixed(2)} €`;
-      homeValue.style.color = '#22c55e';
-      if (homeLabel) homeLabel.textContent = "Crédit Disponible (Cagnotte)";
-    } else if (balance > 0) {
-      homeValue.textContent = `-${balance.toFixed(2)} €`;
-      homeValue.style.color = '#ef4444';
-      if (homeLabel) homeLabel.textContent = "Ardoise Due";
-    } else {
-      homeValue.textContent = "0.00 €";
-      homeValue.style.color = "var(--text-muted)";
-      if (homeLabel) homeLabel.textContent = "Votre Solde Bar (À jour)";
+  const credit = parseFloat(isServing ? target.credit_balance : (currentUser.profile?.credit_balance ?? target.credit_balance)) || 0;
+  const balance = parseFloat(target.balance) || 0;
+
+  // 1. Carte solde sur l'accueil (#home-solde-card) — uniquement le compte de l'utilisateur connecté
+  if (!isServing) {
+    const homeLabel = document.getElementById('home-solde-label');
+    const homeValue = document.getElementById('home-solde-value');
+    if (homeValue) {
+      if (credit > 0) {
+        homeValue.textContent = `+${credit.toFixed(2)} €`;
+        homeValue.style.color = '#22c55e';
+        if (homeLabel) homeLabel.textContent = "Crédit Disponible (Cagnotte)";
+      } else if (balance > 0) {
+        homeValue.textContent = `-${balance.toFixed(2)} €`;
+        homeValue.style.color = '#ef4444';
+        if (homeLabel) homeLabel.textContent = "Ardoise Due";
+      } else {
+        homeValue.textContent = "0.00 €";
+        homeValue.style.color = "var(--text-muted)";
+        if (homeLabel) homeLabel.textContent = "Votre Solde Bar (À jour)";
+      }
     }
   }
 
   // 2. Stat dans la section Consommations Club (#mem-balance)
   const memBalanceEl = document.getElementById('mem-balance');
-  const memBalanceLabel = memBalanceEl?.previousElementSibling;
+  const memBalanceLabel = document.getElementById('mem-balance-label') || memBalanceEl?.previousElementSibling;
   if (memBalanceEl) {
+    const memberName = target.full_name || 'Membre';
     if (credit > 0) {
       memBalanceEl.textContent = `+${credit.toFixed(2)} €`;
       memBalanceEl.className = 'value success';
       memBalanceEl.style.color = '#22c55e';
-      if (memBalanceLabel) memBalanceLabel.textContent = "Crédit Disponible";
+      if (memBalanceLabel) memBalanceLabel.textContent = isServing ? `Crédit de ${memberName}` : "Crédit Disponible";
     } else if (balance > 0) {
       memBalanceEl.textContent = `${balance.toFixed(2)} €`;
       memBalanceEl.className = 'value danger';
       memBalanceEl.style.color = '#ef4444';
-      if (memBalanceLabel) memBalanceLabel.textContent = "Ardoise Totale";
+      if (memBalanceLabel) memBalanceLabel.textContent = isServing ? `Ardoise de ${memberName}` : "Ardoise Totale";
     } else {
       memBalanceEl.textContent = "0.00 €";
       memBalanceEl.className = 'value';
       memBalanceEl.style.color = 'var(--text-muted)';
-      if (memBalanceLabel) memBalanceLabel.textContent = "Ardoise Totale";
+      if (memBalanceLabel) memBalanceLabel.textContent = isServing ? `Solde de ${memberName} (0€)` : "Ardoise Totale";
     }
   }
 }
@@ -1814,6 +1946,45 @@ function updateSoldeDisplay() {
 // --- UI RENDERING (MANAGEMENT) ---
 function renderManagementUI() {
   if (!currentUser) return;
+
+  const target = window.servingMemberTarget || currentUser;
+  const isServing = !!window.servingMemberTarget;
+
+  // Bannière Mode Service au Bar (Admin)
+  const banner = document.getElementById('serving-member-banner');
+  const bannerName = document.getElementById('serving-member-name');
+  if (banner && bannerName) {
+    if (isServing) {
+      bannerName.textContent = target.full_name || target.email || 'Membre';
+      banner.classList.remove('hidden');
+    } else {
+      banner.classList.add('hidden');
+    }
+  }
+
+  // Adaptation des sous-titres et intitulés
+  const heroSubtitle = document.querySelector('.management-hero-header .hero-subtitle');
+  if (heroSubtitle) {
+    if (isServing) {
+      heroSubtitle.innerHTML = `<span style="color:#60a5fa; font-weight:700;">🍺 Mode Service Bar</span> — Vous commandez pour <strong>${target.full_name}</strong> (débit direct de son crédit ou ardoise).`;
+    } else {
+      heroSubtitle.textContent = "Membres, consommations et services privilèges.";
+    }
+  }
+
+  const drinksSubtitle = document.querySelector('.drinks-card .card-subtitle');
+  if (drinksSubtitle) {
+    drinksSubtitle.textContent = isServing
+      ? `Cliquez sur un article pour le servir à ${target.full_name}`
+      : "Un clic pour enregistrer votre consommation";
+  }
+
+  const historyTitle = document.getElementById('management-history-title');
+  if (historyTitle) {
+    historyTitle.textContent = isServing
+      ? `Ardoise en cours de ${target.full_name}`
+      : "Ardoise en attente";
+  }
 
   document.getElementById('user-name').textContent = currentUser.profile?.full_name || 'Membre';
 
@@ -1835,41 +2006,52 @@ function renderManagementUI() {
 
   updateSoldeDisplay();
 
-
-
   // Drinks List
   const drinkList = document.getElementById('drinks-list');
-  drinkList.innerHTML = drinks.map(d => {
-    const visual = d.image_url
-      ? `<img src="${d.image_url}" alt="${d.name}" class="drink-image">`
-      : `<i data-lucide="${d.icon || 'glass-water'}"></i>`;
+  if (drinkList && drinks) {
+    drinkList.innerHTML = drinks.map(d => {
+      const visual = d.image_url
+        ? `<img src="${d.image_url}" alt="${d.name}" class="drink-image">`
+        : `<i data-lucide="${d.icon || 'glass-water'}"></i>`;
 
-    return `
+      return `
         <div class="drink-item" onclick="logConsumption(${d.id}, '${(d.name || '').replace(/'/g, "\\'")}', ${d.price})" style="position: relative;">
             ${visual}
             <span>${d.name || 'Boisson'}</span>
             <span class="drink-price">${d.price}€</span>
         </div>
         `;
-  }).join('');
+    }).join('');
+  }
 
   // History
   loadHistory();
-  lucide.createIcons();
+  if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 async function loadHistory() {
+  const target = window.servingMemberTarget || currentUser;
+  const isServing = !!window.servingMemberTarget;
+
   const { data: hist } = await supabaseClient
     .from('consumptions')
     .select('*, drinks(name)')
-    .eq('member_id', currentUser.id)
+    .eq('member_id', target.id)
     .eq('is_paid', false)
     .order('created_at', { ascending: false });
 
+  if (hist) {
+    target.balance = hist.reduce((acc, c) => acc + (c.price_at_time * (c.quantity || 1)), 0);
+    updateSoldeDisplay();
+  }
+
   const histBody = document.getElementById('history-list');
+  if (!histBody) return;
+
+  const targetName = target.full_name || 'Ce membre';
 
   if (!hist || hist.length === 0) {
-    histBody.innerHTML = `<tr><td colspan="3" class="text-muted" style="text-align:center; padding: 1.5rem;">✅ Aucune ardoise en attente — vous êtes à jour !</td></tr>`;
+    histBody.innerHTML = `<tr><td colspan="3" class="text-muted" style="text-align:center; padding: 1.5rem;">${isServing ? `✅ Aucune ardoise en attente pour ${targetName}.` : '✅ Aucune ardoise en attente — vous êtes à jour !'}</td></tr>`;
     return;
   }
 
@@ -1914,6 +2096,9 @@ async function logConsumption(id, name, price) {
     const iconName = drink?.icon || 'glass-water';
     imgContainer.innerHTML = `<i data-lucide="${iconName}" style="width:48px; height:48px; stroke-width:1.5; color:var(--accent-gold);"></i>`;
   }
+
+  // Mettre à jour la notice explicative selon le mode
+  updateDrinkModalNotice(pendingDrinkOrder);
 
   // Rendre les icônes Lucide dynamiques
   if (typeof lucide !== 'undefined') lucide.createIcons();
