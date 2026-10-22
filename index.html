@@ -279,17 +279,6 @@
             </div>
           </div>
 
-          <!-- Carte Solde Personnel (Crédit / Ardoise) -->
-          <div id="home-solde-card" class="card" style="margin-top: 1.25rem; display: flex; justify-content: space-between; align-items: center; padding: 1.15rem 1.4rem; border-radius: 12px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.1); flex-wrap: wrap; gap: 1rem;">
-            <div>
-              <span id="home-solde-label" style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; display: block; margin-bottom: 0.25rem;">Votre Solde Bar</span>
-              <span id="home-solde-value" style="font-size: 1.6rem; font-weight: 700; color: #22c55e;">0.00 €</span>
-            </div>
-            <button class="btn btn-main" onclick="switchSection('management')" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 1.1rem;">
-              <i data-lucide="coffee"></i> Consommer
-            </button>
-          </div>
-
           <!-- Bouton Edit Admin -->
           <div id="admin-edit-home-btn-container" style="display: none; text-align: right; margin-top: 10px;">
             <button class="btn btn-outline" onclick="openHomeMessageModal()">
@@ -1520,9 +1509,14 @@
 
       <p class="modal-description" id="credit-modal-desc">Ajouter de l'argent d'avance pour le membre.</p>
 
-      <div style="background: rgba(255, 255, 255, 0.05); padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1.2rem; display: flex; justify-content: space-between; align-items: center;">
+      <div style="background: rgba(255, 255, 255, 0.05); padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1.2rem; display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
         <span style="font-size: 0.9rem; color: var(--text-muted);">Solde actuel :</span>
-        <span id="credit-modal-current-balance" style="font-size: 1.1rem; font-weight: 700;">0.00 €</span>
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <span id="credit-modal-current-balance" style="font-size: 1.1rem; font-weight: 700;">0.00 €</span>
+          <button type="button" id="btn-reset-credit-zero" class="btn btn-outline" style="border-color: #ef4444; color: #fca5a5; padding: 3px 8px; font-size: 0.75rem; display: none; cursor: pointer;" onclick="resetMemberCreditToZero()" title="Remettre le crédit d'avance à 0 €">
+            <i data-lucide="rotate-ccw" style="width: 12px; height: 12px; vertical-align: middle;"></i> Remettre à 0 €
+          </button>
+        </div>
       </div>
 
       <div class="form-group" style="margin-bottom: 1rem;">
@@ -1634,7 +1628,7 @@
     src="https://connect.facebook.net/fr_FR/sdk.js#xfbml=1&version=v17.0"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <script src="tournaments.js?v=2.4.8" defer></script>
-  <script src="app.js?v=2.9.14" defer></script>
+  <script src="app.js?v=2.9.15" defer></script>
   <script>
     // Initialisation des icônes Lucide
     lucide.createIcons();

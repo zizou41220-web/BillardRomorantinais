@@ -1898,28 +1898,7 @@ function updateSoldeDisplay() {
   const credit = parseFloat(isServing ? target.credit_balance : (currentUser.profile?.credit_balance ?? target.credit_balance)) || 0;
   const balance = parseFloat(target.balance) || 0;
 
-  // 1. Carte solde sur l'accueil (#home-solde-card) — uniquement le compte de l'utilisateur connecté
-  if (!isServing) {
-    const homeLabel = document.getElementById('home-solde-label');
-    const homeValue = document.getElementById('home-solde-value');
-    if (homeValue) {
-      if (credit > 0) {
-        homeValue.textContent = `+${credit.toFixed(2)} €`;
-        homeValue.style.color = '#22c55e';
-        if (homeLabel) homeLabel.textContent = "Crédit Disponible (Cagnotte)";
-      } else if (balance > 0) {
-        homeValue.textContent = `-${balance.toFixed(2)} €`;
-        homeValue.style.color = '#ef4444';
-        if (homeLabel) homeLabel.textContent = "Ardoise Due";
-      } else {
-        homeValue.textContent = "0.00 €";
-        homeValue.style.color = "var(--text-muted)";
-        if (homeLabel) homeLabel.textContent = "Votre Solde Bar (À jour)";
-      }
-    }
-  }
-
-  // 2. Stat dans la section Consommations Club (#mem-balance)
+  // Stat dans la section Consommations Club (#mem-balance)
   const memBalanceEl = document.getElementById('mem-balance');
   const memBalanceLabel = document.getElementById('mem-balance-label') || memBalanceEl?.previousElementSibling;
   if (memBalanceEl) {
@@ -3099,6 +3078,11 @@ window.openCreditModal = async function(memberId, memberName, currentCredit = 0)
     }
   }
 
+  const resetBtn = document.getElementById('btn-reset-credit-zero');
+  if (resetBtn) {
+    resetBtn.style.display = exactCredit > 0 ? 'inline-flex' : 'none';
+  }
+
   if (amountInput) amountInput.value = '';
   if (noteInput) noteInput.value = '';
 
@@ -3107,6 +3091,57 @@ window.openCreditModal = async function(memberId, memberName, currentCredit = 0)
 
   modal.classList.remove('hidden');
   if (typeof lucide !== 'undefined') lucide.createIcons();
+};
+
+window.resetMemberCreditToZero = async function() {
+  if (!activeCreditMember) return;
+  const memberName = activeCreditMember.name;
+  const oldCredit = activeCreditMember.credit || 0;
+
+  if (oldCredit <= 0) {
+    alert("Le crédit est déjà à 0 €.");
+    return;
+  }
+
+  const confirmReset = confirm(`Êtes-vous sûr de vouloir remettre le crédit de ${memberName} à 0.00 € (effacer les ${oldCredit.toFixed(2)} €) ?`);
+  if (!confirmReset) return;
+
+  toggleLoading(true);
+  try {
+    const adminName = currentUser ? (currentUser.full_name || currentUser.profile?.full_name || currentUser.email) : 'Admin';
+
+    const { error } = await supabaseClient
+      .from('profiles')
+      .update({ credit_balance: 0 })
+      .eq('id', activeCreditMember.id);
+
+    if (error) throw error;
+
+    // Journaliser dans credit_transactions si la table existe
+    try {
+      await supabaseClient.from('credit_transactions').insert({
+        member_id: activeCreditMember.id,
+        amount: -oldCredit,
+        payment_method: 'Ajustement Admin',
+        created_by_name: `${adminName} (Admin)`,
+        note: `Remise à zéro du crédit (${oldCredit.toFixed(2)}€ effacés)`
+      });
+    } catch(e) {}
+
+    activeCreditMember.credit = 0;
+    if (activeCreditMember.id === currentUser.id && currentUser.profile) {
+      currentUser.profile.credit_balance = 0;
+    }
+
+    closeModal('credit-modal');
+    alert(`Le crédit de ${memberName} a bien été remis à 0.00 €.`);
+    loadAppData();
+    if (typeof loadAdminData === 'function') loadAdminData();
+  } catch(err) {
+    alert("Erreur lors de la remise à zéro : " + err.message);
+  } finally {
+    toggleLoading(false);
+  }
 };
 
 window.setCreditQuickAmount = function(amount) {
