@@ -3,8 +3,7 @@
 -- Projet : Billard Club Romorantinais
 -- ==============================================================================
 
--- 1. Synchroniser et créer immédiatement les profils manquants
---    (Permet de corriger Celine "gbdos18@gmail.com" et Victor "vicmen.vms@gmail.com")
+-- 1. Insérer immédiatement les profils manquants (Céline "gbdos18@gmail.com" et Victor "vicmen.vms@gmail.com")
 INSERT INTO public.profiles (id, email, full_name, role, can_manage_stock, is_approved, avatar_url)
 SELECT 
     u.id,
@@ -20,28 +19,7 @@ LEFT JOIN public.profiles p ON p.id = u.id
 WHERE p.id IS NULL
 ON CONFLICT (id) DO NOTHING;
 
--- 2. Fonction RPC de synchronisation (appelable par le bouton "Synchroniser" de l'appli)
-CREATE OR REPLACE FUNCTION public.sync_missing_profiles()
-RETURNS void AS $$
-BEGIN
-  INSERT INTO public.profiles (id, email, full_name, role, can_manage_stock, is_approved, avatar_url)
-  SELECT 
-      u.id,
-      u.email,
-      COALESCE(NULLIF(TRIM(im.full_name), ''), split_part(u.email, '@', 1)),
-      COALESCE(im.role, 'member'),
-      COALESCE(im.can_manage_stock, false),
-      COALESCE(im.is_approved, true),
-      im.avatar_url
-  FROM auth.users u
-  LEFT JOIN public.imported_members im ON LOWER(TRIM(im.email)) = LOWER(TRIM(u.email))
-  LEFT JOIN public.profiles p ON p.id = u.id
-  WHERE p.id IS NULL
-  ON CONFLICT (id) DO NOTHING;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- 3. Trigger automatique à la création de chaque nouvel utilisateur
+-- 2. Déclencheur automatique à chaque nouvelle inscription future
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
 DECLARE
@@ -86,7 +64,7 @@ CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
--- 4. Droits RLS pour permettre aux utilisateurs connectés d'insérer / mettre à jour leur propre profil
+-- 3. Droits RLS pour permettre aux utilisateurs connectés d'insérer / mettre à jour leur propre profil
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
 DO $$

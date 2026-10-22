@@ -1754,13 +1754,6 @@ async function loadAdminData() {
     }
   }
 
-  // Tentative automatique de synchronisation des comptes manquants si RPC disponible
-  try {
-    await supabaseClient.rpc('sync_missing_profiles');
-  } catch (e) {
-    // Ignore si l'RPC n'est pas encore créée
-  }
-
   // 1. Unified Members Fetch
   const { data: mems } = await supabaseClient.from('profiles').select('*, subscriptions(*, subscription_types(*)), consumptions(*)').order('full_name');
 
@@ -2265,27 +2258,6 @@ document.getElementById('add-member-btn').addEventListener('click', async () => 
 
   show('member-modal');
 });
-
-// Bouton de synchronisation des profils inscrits
-const syncBtn = document.getElementById('sync-profiles-btn');
-if (syncBtn) {
-  syncBtn.addEventListener('click', async () => {
-    toggleLoading(true);
-    try {
-      const { error } = await supabaseClient.rpc('sync_missing_profiles');
-      if (error) {
-        alert("Information : La fonction de synchronisation serveur 'sync_missing_profiles' n'a pas encore été installée dans votre base Supabase.\n\n👉 Astuce : Exécutez le script SQL fourni dans l'éditeur SQL de votre Dashboard Supabase.\n\nNote : Les membres sont également réparés automatiquement dès qu'ils se connectent sur l'application !");
-      } else {
-        alert("Comptes synchronisés avec succès !");
-        loadAdminData();
-      }
-    } catch (err) {
-      alert("Erreur lors de la synchronisation : " + err.message);
-    } finally {
-      toggleLoading(false);
-    }
-  });
-}
 
 window.editPendingMember = async function(id) {
   window.editingPendingMemberId = id;
