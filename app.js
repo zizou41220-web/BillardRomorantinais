@@ -1,5 +1,5 @@
 // Portail Unifié - Billard & Équitation
-console.log("Portail Unifié : Démarrage du script v2.8.0...");
+console.log("Portail Unifié : Démarrage du script v2.8.1...");
 let supabaseClient = null;
 let currentUser = null;
 let drinks = [];
@@ -494,13 +494,16 @@ async function initAuth() {
                   profileData.avatar_url = importedMember.avatar_url;
               }
 
-              await supabaseClient
+              const { error: upsertErr } = await supabaseClient
                 .from('profiles')
                 .upsert(profileData);
+              if (upsertErr) {
+                console.warn("Profil en attente d'auto-création à la première connexion :", upsertErr.message);
+              }
             } catch (err) {
-            console.warn("Échec de l'upsert direct du profil (géré par trigger Supabase) :", err);
+              console.warn("Échec de l'upsert direct du profil :", err);
+            }
           }
-        }
         alert("Inscription réussie ! Vous pouvez maintenant vous connecter.");
       }
     }
@@ -744,8 +747,16 @@ function applyRoleAccessControl() {
 
     toggleLoading(true);
     
-    const { error: insertError } = await supabaseClient.from('consumptions').insert(itemsToInsert);
+    let { error: insertError } = await supabaseClient.from('consumptions').insert(itemsToInsert);
     
+    // Auto-réparation si profil manquant dans profiles (violation de clé étrangère)
+    if (insertError && (insertError.message?.toLowerCase().includes('foreign key constraint') || insertError.code === '23503')) {
+      console.warn("Erreur clé étrangère buvette détectée. Réparation automatique du profil...");
+      await ensureUserProfileExists(currentUser);
+      const retry = await supabaseClient.from('consumptions').insert(itemsToInsert);
+      insertError = retry.error;
+    }
+
     if (insertError) {
       toggleLoading(false);
       alert('Erreur lors de la validation : ' + insertError.message);
@@ -963,12 +974,25 @@ function initNavigation() {
 
       if (drinkModal) drinkModal.classList.add('hidden');
       toggleLoading(true);
-      const { error } = await supabaseClient.from('consumptions').insert({
+      let { error } = await supabaseClient.from('consumptions').insert({
         member_id: currentUser.id,
         drink_id: id,
         price_at_time: price,
         quantity: quantity
       });
+
+      // Auto-réparation si profil manquant dans profiles (violation de clé étrangère)
+      if (error && (error.message?.toLowerCase().includes('foreign key constraint') || error.code === '23503')) {
+        console.warn("Erreur clé étrangère boisson détectée. Réparation automatique du profil...");
+        await ensureUserProfileExists(currentUser);
+        const retry = await supabaseClient.from('consumptions').insert({
+          member_id: currentUser.id,
+          drink_id: id,
+          price_at_time: price,
+          quantity: quantity
+        });
+        error = retry.error;
+      }
 
       if (!error && drink && drink.stock !== null && drink.stock !== undefined) {
         // Décrémenter le stock
@@ -1182,21 +1206,104 @@ function switchSection(name) {
   if (name === 'tournaments') initTournamentsModule();
 }
 
+// --- AUTO-RÉPARATION ET SYNCHRONISATION DU PROFIL ---
+async function ensureUserProfileExists(user = currentUser) {
+  if (!user || !user.id || !user.email) return null;
+
+  try {
+    // 1. Vérifier si le profil existe déjà dans la table 'profiles'
+    const { data: existingProfile, error: fetchErr } = await supabaseClient
+      .from('profiles')
+      .select('*, subscriptions(*, subscription_types(*))')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (existingProfile) {
+      return existingProfile;
+    }
+
+    console.warn("Profil manquant dans la table 'profiles' pour :", user.email, "-> Réparation automatique...");
+
+    // 2. Récupérer les informations pré-configurées dans 'imported_members'
+    const cleanEmail = user.email.toLowerCase().trim();
+    const { data: imported } = await supabaseClient
+      .from('imported_members')
+      .select('*')
+      .eq('email', cleanEmail)
+      .maybeSingle();
+
+    const isSuperAdmin = cleanEmail === 'sebastien.tessier41@orange.fr';
+    const fullName = imported?.full_name?.trim() || user.user_metadata?.full_name || user.email.split('@')[0];
+    const role = isSuperAdmin ? 'admin' : (imported?.role || 'member');
+    const canManageStock = isSuperAdmin || (imported?.can_manage_stock === true);
+    const isApproved = isSuperAdmin || (imported?.is_approved === true);
+    const avatarUrl = imported?.avatar_url || null;
+
+    const payload = {
+      id: user.id,
+      email: cleanEmail,
+      full_name: fullName,
+      role: role,
+      can_manage_stock: canManageStock,
+      is_approved: isApproved,
+      avatar_url: avatarUrl
+    };
+
+    // 3. Insérer / mettre à jour le profil dans 'profiles'
+    const { data: upsertedProfile, error: upsertErr } = await supabaseClient
+      .from('profiles')
+      .upsert(payload)
+      .select('*, subscriptions(*, subscription_types(*))')
+      .maybeSingle();
+
+    if (upsertErr) {
+      console.error("Échec de l'auto-création du profil dans 'profiles' :", upsertErr);
+      return {
+        ...payload,
+        subscriptions: []
+      };
+    }
+
+    // 4. Synchroniser un abonnement pré-configuré s'il existe dans imported_members
+    if (imported?.subscription_type_id && imported?.subscription_end_date) {
+      try {
+        const { data: existingSubs } = await supabaseClient
+          .from('subscriptions')
+          .select('id')
+          .eq('member_id', user.id)
+          .limit(1);
+
+        if (!existingSubs || existingSubs.length === 0) {
+          await supabaseClient.from('subscriptions').insert({
+            member_id: user.id,
+            type_id: imported.subscription_type_id,
+            start_date: new Date().toISOString().split('T')[0],
+            end_date: imported.subscription_end_date
+          });
+        }
+      } catch (subErr) {
+        console.warn("Abonnement initial non synchronisé :", subErr);
+      }
+    }
+
+    console.log("Profil réparé et synchronisé avec succès pour :", user.email);
+    return upsertedProfile || payload;
+  } catch (err) {
+    console.error("Exception dans ensureUserProfileExists :", err);
+    return null;
+  }
+}
+
 // --- DATA LOADING ---
 async function loadAppData() {
   toggleLoading(true);
   try {
     console.log("Chargement des données pour :", currentUser.id);
 
-    // 1. Profil & Abonnements
-    const { data: profile, error: profError } = await supabaseClient
-      .from('profiles')
-      .select('*, subscriptions(*, subscription_types(*))')
-      .eq('id', currentUser.id)
-      .single();
+    // 1. Profil & Abonnements avec auto-réparation
+    let profile = await ensureUserProfileExists(currentUser);
 
-    if (profError) {
-      console.warn("Profil non trouvé ou erreur:", profError.message);
+    if (!profile) {
       currentUser.profile = {
         full_name: currentUser.email.split('@')[0],
         role: currentUser.email === 'sebastien.tessier41@orange.fr' ? 'admin' : 'member',
@@ -1645,6 +1752,13 @@ async function loadAdminData() {
       if (defaultTab) defaultTab.classList.add('active');
       document.getElementById('adm-members')?.classList.add('active');
     }
+  }
+
+  // Tentative automatique de synchronisation des comptes manquants si RPC disponible
+  try {
+    await supabaseClient.rpc('sync_missing_profiles');
+  } catch (e) {
+    // Ignore si l'RPC n'est pas encore créée
   }
 
   // 1. Unified Members Fetch
@@ -2151,6 +2265,27 @@ document.getElementById('add-member-btn').addEventListener('click', async () => 
 
   show('member-modal');
 });
+
+// Bouton de synchronisation des profils inscrits
+const syncBtn = document.getElementById('sync-profiles-btn');
+if (syncBtn) {
+  syncBtn.addEventListener('click', async () => {
+    toggleLoading(true);
+    try {
+      const { error } = await supabaseClient.rpc('sync_missing_profiles');
+      if (error) {
+        alert("Information : La fonction de synchronisation serveur 'sync_missing_profiles' n'a pas encore été installée dans votre base Supabase.\n\n👉 Astuce : Exécutez le script SQL fourni dans l'éditeur SQL de votre Dashboard Supabase.\n\nNote : Les membres sont également réparés automatiquement dès qu'ils se connectent sur l'application !");
+      } else {
+        alert("Comptes synchronisés avec succès !");
+        loadAdminData();
+      }
+    } catch (err) {
+      alert("Erreur lors de la synchronisation : " + err.message);
+    } finally {
+      toggleLoading(false);
+    }
+  });
+}
 
 window.editPendingMember = async function(id) {
   window.editingPendingMemberId = id;

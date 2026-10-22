@@ -209,7 +209,7 @@
           <i data-lucide="log-out" style="width: 14px; height: 14px;"></i> Se déconnecter
         </button>
         <div style="text-align: center; margin-top: 1rem; font-size: 0.75rem; color: rgba(255, 255, 255, 0.3);">
-          v2.8.0
+          v2.8.1
         </div>
       </div>
     </nav>
@@ -245,7 +245,7 @@
           <div class="logo-circle-mini">
             <img src="Logo.jpg" alt="BC41" onerror="this.style.display='none'">
           </div>
-          <span class="mobile-title">Billard Blackball Romorantinais <span style="font-size:0.65rem; color:var(--text-muted); font-weight:normal;">v2.8.0</span></span>
+          <span class="mobile-title">Billard Blackball Romorantinais <span style="font-size:0.65rem; color:var(--text-muted); font-weight:normal;">v2.8.1</span></span>
         </div>
 
         <div class="user-profile" id="user-profile-menu-trigger">
@@ -902,7 +902,10 @@
             <div
               style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
               <h3><i data-lucide="users"></i> Liste des Membres</h3>
-              <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+              <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                <button class="btn-alt" id="sync-profiles-btn"
+                  style="display: flex; align-items: center; gap: 0.5rem; padding: 6px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15);"
+                  title="Synchroniser les comptes inscrits"><i data-lucide="refresh-cw" style="width:16px;"></i> Synchroniser</button>
                 <button class="btn-main" id="add-member-btn"
                   style="display: flex; align-items: center; gap: 0.5rem; padding: 6px 12px; border-radius: 8px; border: none;"><i
                     data-lucide="user-plus" style="width:16px;"></i> Nouveau</button>
@@ -1515,7 +1518,7 @@
     src="https://connect.facebook.net/fr_FR/sdk.js#xfbml=1&version=v17.0"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <script src="tournaments.js?v=2.4.8" defer></script>
-  <script src="app.js?v=2.9.9" defer></script>
+  <script src="app.js?v=2.9.10" defer></script>
   <script>
     // Initialisation des icônes Lucide
     lucide.createIcons();
