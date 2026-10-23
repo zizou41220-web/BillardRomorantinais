@@ -22,7 +22,7 @@
       });
     }
   </script>
-  <link rel="stylesheet" href="style.css?v=2.4.4">
+  <link rel="stylesheet" href="style.css?v=2.4.5">
   <link rel="stylesheet" href="tournament_hero.css">
   <style>
     /* Force modal-overlay display flex when active, completely bypassing external CSS cache */
@@ -210,7 +210,7 @@
           <i data-lucide="log-out" style="width: 14px; height: 14px;"></i> Se déconnecter
         </button>
         <div style="text-align: center; margin-top: 1rem; font-size: 0.75rem; color: rgba(255, 255, 255, 0.3);">
-          v2.8.3
+          v2.8.4
         </div>
       </div>
     </nav>
@@ -247,7 +247,7 @@
             <img src="Logo.jpg" alt="BC41" onerror="this.style.display='none'">
           </div>
           <span class="mobile-title">Billard Blackball Romorantinais <span
-              style="font-size:0.65rem; color:var(--text-muted); font-weight:normal;">v2.8.3</span></span>
+              style="font-size:0.65rem; color:var(--text-muted); font-weight:normal;">v2.8.4</span></span>
         </div>
 
         <div class="user-profile" id="user-profile-menu-trigger">
@@ -353,40 +353,25 @@
           </div>
 
           <div class="management-grid">
-            <!-- Colonne Consommations : Deux zones distinctes (Boissons & Billard) -->
-            <div class="consumptions-zones">
-              
-              <!-- Zone 1 : Boissons & En-cas -->
-              <div class="card drinks-card">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.35rem; flex-wrap: wrap; gap: 0.5rem;">
-                  <h3 style="margin-bottom: 0;"><i data-lucide="coffee"></i> Boissons & En-cas</h3>
-                  <span class="category-badge bar-badge">🥤 Bar & Friandises</span>
-                </div>
-                <p class="card-subtitle" style="margin-bottom: 1.25rem;">Un clic pour enregistrer votre boisson ou collation</p>
-                <div id="drinks-bar-list" class="drink-grid">
-                  <!-- Injecté par JS -->
-                </div>
+            <!-- 1er : Consommations Boissons & En-cas -->
+            <div class="card drinks-card">
+              <h3 style="margin-bottom: 1.25rem;"><i data-lucide="coffee"></i> Boissons & En-cas</h3>
+              <div id="drinks-bar-list" class="drink-grid">
+                <!-- Injecté par JS -->
               </div>
-
-              <!-- Zone 2 : Matériel & Consommables Billard -->
-              <div class="card billiard-card">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.35rem; flex-wrap: wrap; gap: 0.5rem;">
-                  <h3 style="margin-bottom: 0;"><i data-lucide="circle-dot"></i> Matériel & Consommables Billard</h3>
-                  <span class="category-badge billiard-badge">🎱 Billard</span>
-                </div>
-                <p class="card-subtitle" style="margin-bottom: 1.25rem;">Craies, procédés et accessoires de jeu</p>
-                <div id="drinks-billiard-list" class="drink-grid">
-                  <!-- Injecté par JS -->
-                </div>
-              </div>
-
-              <!-- Ancien container masqué pour rétrocompatibilité totale -->
-              <div id="drinks-list" style="display: none;"></div>
             </div>
 
-            <!-- Colonne Historique -->
+            <!-- 2ème (En dessous) : Consommables Billard -->
+            <div class="card billiard-card">
+              <h3 style="margin-bottom: 1.25rem;"><i data-lucide="circle-dot"></i> Consommables Billard</h3>
+              <div id="drinks-billiard-list" class="drink-grid">
+                <!-- Injecté par JS -->
+              </div>
+            </div>
+
+            <!-- 3ème (Encore en dessous) : Ardoise en attente -->
             <div class="card history-card">
-              <h3><i data-lucide="receipt"></i> <span id="management-history-title">Ardoise en attente</span></h3>
+              <h3 style="margin-bottom: 1.25rem;"><i data-lucide="receipt"></i> <span id="management-history-title">Ardoise en attente</span></h3>
               <div class="table-wrapper">
                 <table>
                   <thead>
@@ -402,6 +387,9 @@
                 </table>
               </div>
             </div>
+
+            <!-- Container masqué pour rétrocompatibilité totale -->
+            <div id="drinks-list" style="display: none;"></div>
           </div>
         </section>
 
@@ -1714,7 +1702,7 @@
     src="https://connect.facebook.net/fr_FR/sdk.js#xfbml=1&version=v17.0"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <script src="tournaments.js?v=2.4.8" defer></script>
-  <script src="app.js?v=2.9.17" defer></script>
+  <script src="app.js?v=2.9.18" defer></script>
   <script>
     // Initialisation des icônes Lucide
     lucide.createIcons();
