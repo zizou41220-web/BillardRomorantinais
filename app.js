@@ -76,7 +76,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         const selector = document.getElementById('season-selector');
-        
+
         const currentDate = new Date();
         const currentM = currentDate.getMonth();
         const currentY = currentDate.getFullYear();
@@ -91,17 +91,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             const seasonStartYear = d.getMonth() >= 8 ? y : y - 1;
             seasons.add(seasonStartYear);
           });
-          
+
           selector.innerHTML = '';
           const sortedSeasons = Array.from(seasons).sort((a, b) => b - a);
           if (sortedSeasons.length === 0) {
             sortedSeasons.push(currentSeason);
           }
-          
+
           sortedSeasons.forEach(y => {
             const opt = document.createElement('option');
             opt.value = y;
-            opt.textContent = `Saison ${y}-${y+1}`;
+            opt.textContent = `Saison ${y}-${y + 1}`;
             selector.appendChild(opt);
           });
 
@@ -112,7 +112,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         const selectedSeason = selector ? parseInt(selector.value) : currentSeason;
-        
+
         const months = ["Sept", "Oct", "Nov", "Déc", "Jan", "Fév", "Mars", "Avr", "Mai", "Juin", "Juil", "Août"];
         const monthlyPaid = new Array(12).fill(0);
         const monthlyUnpaid = new Array(12).fill(0);
@@ -120,19 +120,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         let totalRevenue = 0;
         let totalPaid = 0;
         let totalUnpaid = 0;
-        
+
         allConsData.forEach(c => {
           const d = new Date(c.created_at);
           const m = d.getMonth();
           const y = d.getFullYear();
           const seasonStartYear = m >= 8 ? y : y - 1;
-          
+
           if (seasonStartYear === selectedSeason) {
             const index = (m >= 8) ? (m - 8) : (m + 4);
             const qty = c.quantity || 1;
             const price = c.price_at_time || 0;
             const amount = qty * price;
-            
+
             monthlyTotal[index] += amount;
             totalRevenue += amount;
 
@@ -145,7 +145,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
           }
         });
-        
+
         const totalSalesEl = document.getElementById('stat-total-sales');
         if (totalSalesEl) {
           totalSalesEl.textContent = totalRevenue.toFixed(2).replace(/\./g, ',') + ' €';
@@ -317,13 +317,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Group by month and item_name
         const monthlyItems = {};
         const allItems = new Set();
-        
+
         consData.forEach(c => {
           const date = new Date(c.created_at);
           const monthKey = `${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
           const qty = c.quantity || 1;
           const itemName = (c.drinks && c.drinks.name) ? c.drinks.name : 'Inconnu';
-          
+
           if (!monthlyItems[monthKey]) {
             monthlyItems[monthKey] = {};
           }
@@ -336,14 +336,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const labels = Object.keys(monthlyItems);
         const itemNames = Array.from(allItems);
-        
+
         // Prepare datasets
         const colors = [
           '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6',
           '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#eab308',
           '#06b6d4', '#64748b', '#22c55e', '#84cc16', '#d946ef'
         ];
-        
+
         const datasets = itemNames.map((itemName, index) => {
           const data = labels.map(month => {
             return monthlyItems[month][itemName] || 0;
@@ -525,63 +525,63 @@ async function initAuth() {
       const isFirstUser = profileCount === 0;
       let importedMember = null;
 
-        if (!isFirstUser) {
-          const { data: importData, error: importCheckError } = await supabaseClient
-            .from('imported_members')
-            .select('*')
-            .eq('email', email.trim().toLowerCase())
-            .maybeSingle();
-          importedMember = importData;
+      if (!isFirstUser) {
+        const { data: importData, error: importCheckError } = await supabaseClient
+          .from('imported_members')
+          .select('*')
+          .eq('email', email.trim().toLowerCase())
+          .maybeSingle();
+        importedMember = importData;
 
-          if (importCheckError) {
-            toggleLoading(false);
-            return alert("Erreur lors de la vérification de votre éligibilité : " + importCheckError.message);
-          }
-
-          if (!importedMember) {
-            toggleLoading(false);
-            return alert("Création de compte refusée : Votre e-mail n'est pas en attente d'inscription dans la liste des membres. Veuillez demander à un administrateur de vous ajouter au préalable.");
-          }
+        if (importCheckError) {
+          toggleLoading(false);
+          return alert("Erreur lors de la vérification de votre éligibilité : " + importCheckError.message);
         }
 
-        const { data, error } = await supabaseClient.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              full_name: pseudo
-            }
-          }
-        });
-        if (error) {
-          alert("Erreur d'inscription : " + error.message);
-        } else {
-          if (data?.user) {
-            try {
-              const userRole = isFirstUser ? 'admin' : (importedMember && importedMember.role === 'admin' ? 'admin' : 'member');
-              const userStock = importedMember && importedMember.can_manage_stock === true;
-              
-              let profileData = {
-                  id: data.user.id,
-                  email: email,
-                  full_name: pseudo,
-                  role: userRole,
-                  can_manage_stock: userStock
-              };
-              if (importedMember && importedMember.avatar_url) {
-                  profileData.avatar_url = importedMember.avatar_url;
-              }
+        if (!importedMember) {
+          toggleLoading(false);
+          return alert("Création de compte refusée : Votre e-mail n'est pas en attente d'inscription dans la liste des membres. Veuillez demander à un administrateur de vous ajouter au préalable.");
+        }
+      }
 
-              const { error: upsertErr } = await supabaseClient
-                .from('profiles')
-                .upsert(profileData);
-              if (upsertErr) {
-                console.warn("Profil en attente d'auto-création à la première connexion :", upsertErr.message);
-              }
-            } catch (err) {
-              console.warn("Échec de l'upsert direct du profil :", err);
-            }
+      const { data, error } = await supabaseClient.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: pseudo
           }
+        }
+      });
+      if (error) {
+        alert("Erreur d'inscription : " + error.message);
+      } else {
+        if (data?.user) {
+          try {
+            const userRole = isFirstUser ? 'admin' : (importedMember && importedMember.role === 'admin' ? 'admin' : 'member');
+            const userStock = importedMember && importedMember.can_manage_stock === true;
+
+            let profileData = {
+              id: data.user.id,
+              email: email,
+              full_name: pseudo,
+              role: userRole,
+              can_manage_stock: userStock
+            };
+            if (importedMember && importedMember.avatar_url) {
+              profileData.avatar_url = importedMember.avatar_url;
+            }
+
+            const { error: upsertErr } = await supabaseClient
+              .from('profiles')
+              .upsert(profileData);
+            if (upsertErr) {
+              console.warn("Profil en attente d'auto-création à la première connexion :", upsertErr.message);
+            }
+          } catch (err) {
+            console.warn("Échec de l'upsert direct du profil :", err);
+          }
+        }
         alert("Inscription réussie ! Vous pouvez maintenant vous connecter.");
       }
     }
@@ -663,7 +663,7 @@ function applyRoleAccessControl() {
   const navTournaments = document.querySelector('.nav-menu li[data-section="tournaments"]');
   const navAdmin = document.querySelector('.nav-menu li[data-section="admin"]');
   const mobileNavBar = document.getElementById('mobile-nav-bar');
-  
+
   const mobileHome = document.querySelector('.mobile-nav-item[data-section="home"]');
   const mobileTournaments = document.querySelector('.mobile-nav-item[data-section="tournaments"]');
   const mobileAdmin = document.querySelector('.mobile-nav-item[data-section="admin"]');
@@ -694,7 +694,7 @@ function applyRoleAccessControl() {
   // --- GESTION BUVETTE & SERVICE AU BAR (MODAL) ---
   window.cachedMembersForBuvette = [];
 
-  window.populateBuvetteMemberSelect = async function(preselectedMemberId = null) {
+  window.populateBuvetteMemberSelect = async function (preselectedMemberId = null) {
     const select = document.getElementById('buvette-member-select');
     if (!select) return;
 
@@ -731,7 +731,7 @@ function applyRoleAccessControl() {
     window.onBuvetteMemberChanged();
   };
 
-  window.onBuvetteMemberChanged = function() {
+  window.onBuvetteMemberChanged = function () {
     const select = document.getElementById('buvette-member-select');
     const infoDiv = document.getElementById('buvette-member-info');
     const paymentGroup = document.getElementById('buvette-payment-type-group');
@@ -775,7 +775,7 @@ function applyRoleAccessControl() {
   // --- SERVICE AU BAR EN LIEU ET PLACE D'UN MEMBRE ---
   window.servingMemberTarget = null;
 
-  window.openBuvetteForMember = async function(memberId) {
+  window.openBuvetteForMember = async function (memberId) {
     let member = window.allMembersList?.find(m => m.id === memberId);
     if (!member) {
       try {
@@ -825,7 +825,7 @@ function applyRoleAccessControl() {
   };
   window.serveDrinksForMember = window.openBuvetteForMember;
 
-  window.exitServingMemberMode = function() {
+  window.exitServingMemberMode = function () {
     window.servingMemberTarget = null;
     const banner = document.getElementById('serving-member-banner');
     if (banner) banner.classList.add('hidden');
@@ -835,37 +835,37 @@ function applyRoleAccessControl() {
     if (typeof loadAdminData === 'function') loadAdminData();
   };
 
-  window.openBuvetteModal = async function(preselectedMemberId = null) {
+  window.openBuvetteModal = async function (preselectedMemberId = null) {
     try {
       const modal = document.getElementById('buvette-modal');
       const tbody = document.getElementById('buvette-drinks-list');
-      
+
       if (!modal || !tbody) {
         alert("Erreur: modal ou tbody introuvable.");
         return;
       }
-      
+
       tbody.innerHTML = '';
-      
+
       if (typeof drinks === 'undefined' || !drinks) {
         alert("Erreur: La variable drinks n'est pas définie ou est vide.");
         return;
       }
-      
+
       const sortedDrinks = [...drinks].sort((a, b) => {
         const catA = getItemCategory(a);
         const catB = getItemCategory(b);
         if (catA !== catB) return catA === 'bar' ? -1 : 1;
         return a.name.localeCompare(b.name);
       });
-      
+
       sortedDrinks.forEach(drink => {
         if (isMembership(drink)) return;
         const isBilliard = getItemCategory(drink) === 'billard';
         const catBadge = isBilliard
           ? `<span style="font-size:0.7rem; padding:1px 6px; border-radius:4px; background:rgba(245,158,11,0.2); color:#fcd34d; font-weight:600; margin-left:6px;">🎱 Billard</span>`
           : `<span style="font-size:0.7rem; padding:1px 6px; border-radius:4px; background:rgba(59,130,246,0.15); color:#93c5fd; font-weight:600; margin-left:6px;">🥤 Bar</span>`;
-    
+
         const tr = document.createElement('tr');
         tr.style.borderBottom = '1px solid rgba(255, 255, 255, 0.05)';
         tr.innerHTML = `
@@ -882,13 +882,13 @@ function applyRoleAccessControl() {
         `;
         tbody.appendChild(tr);
       });
-    
+
       const inputs = tbody.querySelectorAll('.buvette-qty, .buvette-free');
       inputs.forEach(input => {
         input.addEventListener('change', window.calculateBuvetteTotal);
         input.addEventListener('input', window.calculateBuvetteTotal);
       });
-    
+
       window.calculateBuvetteTotal();
 
       // Peupler le sélecteur de membre
@@ -896,20 +896,20 @@ function applyRoleAccessControl() {
 
       modal.classList.remove('hidden');
       if (typeof lucide !== 'undefined') lucide.createIcons();
-    } catch(e) {
+    } catch (e) {
       alert("Erreur dans openBuvetteModal: " + e.message);
     }
   };
 
-  window.closeBuvetteModal = function() {
+  window.closeBuvetteModal = function () {
     const modal = document.getElementById('buvette-modal');
     if (modal) modal.classList.add('hidden');
-    
+
     const commentInput = document.getElementById('buvette-comment');
     if (commentInput) commentInput.value = '';
   };
 
-  window.calculateBuvetteTotal = function() {
+  window.calculateBuvetteTotal = function () {
     const tbody = document.getElementById('buvette-drinks-list');
     if (!tbody) return;
 
@@ -918,12 +918,12 @@ function applyRoleAccessControl() {
     rows.forEach(row => {
       const qtyInput = row.querySelector('.buvette-qty');
       const freeCheck = row.querySelector('.buvette-free');
-      
+
       if (qtyInput && freeCheck) {
         const qty = parseInt(qtyInput.value) || 0;
         const price = parseFloat(qtyInput.getAttribute('data-price')) || 0;
         const isFree = freeCheck.checked;
-        
+
         if (qty > 0 && !isFree) {
           total += qty * price;
         }
@@ -936,7 +936,7 @@ function applyRoleAccessControl() {
     }
   };
 
-  window.validateBuvetteOrder = async function() {
+  window.validateBuvetteOrder = async function () {
     const tbody = document.getElementById('buvette-drinks-list');
     if (!tbody) return;
 
@@ -953,18 +953,18 @@ function applyRoleAccessControl() {
 
     const rows = tbody.querySelectorAll('tr');
     const selectedItems = [];
-    
+
     rows.forEach(row => {
       const qtyInput = row.querySelector('.buvette-qty');
       const freeCheck = row.querySelector('.buvette-free');
-      
+
       if (qtyInput && freeCheck) {
         const qty = parseInt(qtyInput.value) || 0;
         if (qty > 0) {
           const id = qtyInput.getAttribute('data-id');
           const price = parseFloat(qtyInput.getAttribute('data-price')) || 0;
           const isFree = freeCheck.checked;
-          
+
           selectedItems.push({
             drink_id: id,
             quantity: qty,
@@ -1166,7 +1166,7 @@ function applyRoleAccessControl() {
 
   if (isAdminTabVisible) {
     if (navAdmin) navAdmin.style.display = '';
-    if (mobileAdmin) mobileAdmin.style.display = ''; 
+    if (mobileAdmin) mobileAdmin.style.display = '';
 
     if (currentSection) {
       switchSection(currentSection);
@@ -1443,7 +1443,7 @@ function initNavigation() {
               .eq('member_id', targetUser.id)
               .eq('is_paid', false);
             targetUser.balance = unpaidCons?.reduce((acc, c) => acc + (c.price_at_time * (c.quantity || 1)), 0) || 0;
-          } catch (e) {}
+          } catch (e) { }
 
           alert(`✅ ${quantity}x ${name} enregistrée(s) pour ${targetUser.full_name} !`);
           renderManagementUI();
@@ -1467,7 +1467,7 @@ function initNavigation() {
     tab.addEventListener('click', () => {
       const paneId = tab.getAttribute('data-tab');
       if (!paneId) return; // Ignorer si ce n'est pas un onglet principal (ex: onglets dans les modales)
-      
+
       document.querySelectorAll('.btn-tab').forEach(t => {
         if (t.hasAttribute('data-tab')) t.classList.remove('active');
       });
@@ -1534,7 +1534,7 @@ function initNavigation() {
     cancelChangePassBtn.addEventListener('click', async () => {
       changePassModal.classList.add('hidden');
       if (changePassForm) changePassForm.reset();
-      
+
       if (isRecoverySession) {
         // Si c'était une session de récupération et que l'utilisateur annule, on le déconnecte
         isRecoverySession = false;
@@ -1872,7 +1872,7 @@ function renderHomeMessage(settings) {
   const titleEl = document.getElementById('dynamic-home-title');
   const textEl = document.getElementById('dynamic-home-text');
   const imgEl = document.getElementById('dynamic-home-image');
-  
+
   const title = currentSettings.home_title || '';
   const text = currentSettings.home_text || '';
   const image = currentSettings.home_image_url || '';
@@ -1902,7 +1902,7 @@ function renderHomeMessage(settings) {
   }
 }
 
-window.openHomeMessageModal = function() {
+window.openHomeMessageModal = function () {
   if (currentUser?.profile?.role !== 'admin') return;
   document.getElementById('hm-title').value = currentSettings?.home_title || '';
   document.getElementById('hm-text').value = currentSettings?.home_text || '';
@@ -1925,7 +1925,7 @@ document.getElementById('save-home-message-btn')?.addEventListener('click', asyn
     }
 
     const updateData = { home_title: title, home_text: text, home_image_url: imgUrl };
-    
+
     let res;
     if (currentSettings && currentSettings.id) {
       res = await supabaseClient.from('settings').update(updateData).eq('id', currentSettings.id);
@@ -1934,11 +1934,11 @@ document.getElementById('save-home-message-btn')?.addEventListener('click', asyn
     }
 
     if (res.error) throw res.error;
-    
+
     document.getElementById('home-message-modal').classList.add('hidden');
     // Refresh to get the new data
     loadAppData();
-  } catch(e) {
+  } catch (e) {
     alert("Erreur lors de l'enregistrement: " + e.message);
   } finally {
     toggleLoading(false);
@@ -2606,8 +2606,8 @@ async function loadAdminData() {
     const preview = d.image_url ? `<img src="${d.image_url}" style="width:32px;height:32px;object-fit:cover;border-radius:4px;" title="${d.image_url}" alt="">` : `<i data-lucide="${d.icon || defaultIcon}"></i>`;
     const link = d.image_url ? `<a href="${d.image_url}" target="_blank" style="font-size: 0.7rem; color: var(--primary); display: block;">Voir</a>` : '';
     const catBadge = getItemCategory(d) === 'billard'
-      ? `<span class="category-badge billiard-badge" style="font-size:0.65rem; padding:1px 6px; margin-top:3px; display:inline-block;">🎱 Billard</span>`
-      : `<span class="category-badge bar-badge" style="font-size:0.65rem; padding:1px 6px; margin-top:3px; display:inline-block;">🥤 Bar / Snack</span>`;
+      ? `<span class="category-badge billiard-badge" style="font-size:0.65rem; padding:1px 6px; margin-top:3px; display:inline-block;">Billard</span>`
+      : `<span class="category-badge bar-badge" style="font-size:0.65rem; padding:1px 6px; margin-top:3px; display:inline-block;">Bar / Snack</span>`;
 
     row.innerHTML = `
           <td>${preview}${link}</td>
@@ -2671,7 +2671,7 @@ async function deleteProfile(id) {
 window.deletePendingImport = deletePendingImport;
 window.deleteProfile = deleteProfile;
 
-window.toggleStockRights = async function(id, checked) {
+window.toggleStockRights = async function (id, checked) {
   toggleLoading(true);
   const { error } = await supabaseClient.from('profiles').update({ can_manage_stock: checked }).eq('id', id);
   toggleLoading(false);
@@ -2691,7 +2691,7 @@ async function toggleMemberApproval(profileId, isApproved) {
     .update({ is_approved: isApproved })
     .eq('id', profileId);
   hide('loading');
-  
+
   if (error) {
     alert("Erreur lors de la mise à jour: " + error.message);
     loadAdminData(); // recharger pour remettre le bouton dans le bon état
@@ -2705,7 +2705,7 @@ async function togglePendingApproval(importId, isApproved) {
     .update({ is_approved: isApproved })
     .eq('id', importId);
   hide('loading');
-  
+
   if (error) {
     alert("Erreur lors de la mise à jour: " + error.message);
     loadAdminData(); // recharger pour remettre le bouton dans le bon état
@@ -2732,7 +2732,7 @@ async function toggleAdminRole(profileId, currentRole) {
   }
 }
 
-window.togglePendingStockRights = async function(id, checked) {
+window.togglePendingStockRights = async function (id, checked) {
   show('loading');
   const { error } = await supabaseClient.from('imported_members').update({ can_manage_stock: checked }).eq('id', id);
   hide('loading');
@@ -2740,7 +2740,7 @@ window.togglePendingStockRights = async function(id, checked) {
   else loadAdminData();
 };
 
-window.togglePendingAdminRole = async function(id, currentRole) {
+window.togglePendingAdminRole = async function (id, currentRole) {
   const newRole = currentRole === 'admin' ? 'member' : 'admin';
   const actionText = newRole === 'admin' ? 'pré-configurer ce membre comme Administrateur' : 'annuler la pré-configuration Administrateur';
 
@@ -2762,43 +2762,43 @@ window.togglePendingAdminRole = async function(id, currentRole) {
 
 async function editMemberPseudo(profileId, currentPseudo, currentEmail) {
   show('loading');
-  
+
   // On récupère les infos d'abonnement s'il y en a une
   const { data: imported } = await supabaseClient.from('imported_members').select('*').eq('email', currentEmail).maybeSingle();
-  
+
   // On récupère le profil complet (pour le can_manage_stock)
   const { data: profile } = await supabaseClient.from('profiles').select('*').eq('id', profileId).single();
-  
+
   const { data: types } = await supabaseClient.from('subscription_types').select('*');
   const select = document.getElementById('manual-mem-type');
   if (select && types) {
-      select.innerHTML = types.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+    select.innerHTML = types.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
   }
 
   hide('loading');
 
   // Remplir le modal
   window.editingPendingMemberId = imported ? imported.id : null; // Si on l'a, on update direct
-  
+
   document.getElementById('manual-mem-name').value = profile.full_name || currentPseudo;
   document.getElementById('manual-mem-email').value = currentEmail || '';
-  
+
   // Rendre l'email en lecture seule pour éviter les conflits d'auth
   document.getElementById('manual-mem-email').setAttribute('readonly', 'true');
   document.getElementById('manual-mem-email').title = "L'adresse email d'un compte inscrit ne peut pas être modifiée ici.";
-  
+
   if (imported) {
-      if (document.getElementById('manual-mem-type')) document.getElementById('manual-mem-type').value = imported.subscription_type_id || '';
-      if (document.getElementById('manual-mem-end-date')) document.getElementById('manual-mem-end-date').value = imported.subscription_end_date || '';
+    if (document.getElementById('manual-mem-type')) document.getElementById('manual-mem-type').value = imported.subscription_type_id || '';
+    if (document.getElementById('manual-mem-end-date')) document.getElementById('manual-mem-end-date').value = imported.subscription_end_date || '';
   } else {
-      // Set default end date to +1 year
-      const nextYear = new Date();
-      nextYear.setFullYear(nextYear.getFullYear() + 1);
-      if (document.getElementById('manual-mem-end-date')) document.getElementById('manual-mem-end-date').value = nextYear.toISOString().split('T')[0];
+    // Set default end date to +1 year
+    const nextYear = new Date();
+    nextYear.setFullYear(nextYear.getFullYear() + 1);
+    if (document.getElementById('manual-mem-end-date')) document.getElementById('manual-mem-end-date').value = nextYear.toISOString().split('T')[0];
   }
-  
+
   if (document.getElementById('manual-mem-can-manage-stock')) {
-      document.getElementById('manual-mem-can-manage-stock').checked = profile.can_manage_stock || false;
+    document.getElementById('manual-mem-can-manage-stock').checked = profile.can_manage_stock || false;
   }
 
   const modalTitle = document.querySelector('#member-modal h3');
@@ -2867,7 +2867,7 @@ document.getElementById('add-member-btn').addEventListener('click', async () => 
   const { data: types } = await supabaseClient.from('subscription_types').select('*');
   const select = document.getElementById('manual-mem-type');
   if (select && types) {
-      select.innerHTML = types.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+    select.innerHTML = types.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
   }
 
   document.getElementById('manual-mem-name').value = '';
@@ -2875,14 +2875,14 @@ document.getElementById('add-member-btn').addEventListener('click', async () => 
   document.getElementById('manual-mem-email').removeAttribute('readonly');
   document.getElementById('manual-mem-email').removeAttribute('title');
   if (document.getElementById('manual-mem-can-manage-stock')) {
-      document.getElementById('manual-mem-can-manage-stock').checked = false;
+    document.getElementById('manual-mem-can-manage-stock').checked = false;
   }
 
   // Set default end date to +1 year
   const nextYear = new Date();
   nextYear.setFullYear(nextYear.getFullYear() + 1);
   if (document.getElementById('manual-mem-end-date')) {
-      document.getElementById('manual-mem-end-date').value = nextYear.toISOString().split('T')[0];
+    document.getElementById('manual-mem-end-date').value = nextYear.toISOString().split('T')[0];
   }
 
   const modalTitle = document.querySelector('#member-modal h3');
@@ -2891,14 +2891,14 @@ document.getElementById('add-member-btn').addEventListener('click', async () => 
   show('member-modal');
 });
 
-window.editPendingMember = async function(id) {
+window.editPendingMember = async function (id) {
   window.editingPendingMemberId = id;
   show('loading');
-  
+
   const { data: types } = await supabaseClient.from('subscription_types').select('*');
   const select = document.getElementById('manual-mem-type');
   if (select && types) {
-      select.innerHTML = types.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+    select.innerHTML = types.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
   }
 
   const { data: member } = await supabaseClient.from('imported_members').select('*').eq('id', id).maybeSingle();
@@ -2944,20 +2944,20 @@ document.getElementById('save-manual-member-btn').addEventListener('click', asyn
     subscription_end_date: endDate,
     can_manage_stock: canManageStock
   };
-  
+
   if (typeof avatarUrl !== 'undefined' && avatarUrl !== '') {
-      record.avatar_url = avatarUrl;
+    record.avatar_url = avatarUrl;
   }
-  
+
   const subscriptionStartDate = new Date().toISOString().split('T')[0];
 
   let error = null;
   if (window.editingPendingMemberId) {
-      const res = await supabaseClient.from('imported_members').update(record).eq('id', window.editingPendingMemberId);
-      error = res.error;
+    const res = await supabaseClient.from('imported_members').update(record).eq('id', window.editingPendingMemberId);
+    error = res.error;
   } else {
-      const res = await supabaseClient.from('imported_members').upsert(record, { onConflict: 'email' });
-      error = res.error;
+    const res = await supabaseClient.from('imported_members').upsert(record, { onConflict: 'email' });
+    error = res.error;
   }
 
   if (!error) {
@@ -2974,16 +2974,16 @@ document.getElementById('save-manual-member-btn').addEventListener('click', asyn
       }
       profileUpdates.can_manage_stock = canManageStock;
       profileUpdates.full_name = name;
-      
+
       if (Object.keys(profileUpdates).length > 0) {
-         try {
-             await supabaseClient.from('profiles').update(profileUpdates).eq('id', profile.id);
-             if (currentUser?.id === profile.id && currentUser?.profile) {
-                 currentUser.profile.can_manage_stock = canManageStock;
-             }
-         } catch(err) {
-             console.warn("Erreur MAJ profile", err);
-         }
+        try {
+          await supabaseClient.from('profiles').update(profileUpdates).eq('id', profile.id);
+          if (currentUser?.id === profile.id && currentUser?.profile) {
+            currentUser.profile.can_manage_stock = canManageStock;
+          }
+        } catch (err) {
+          console.warn("Erreur MAJ profile", err);
+        }
       }
 
       const { data: subs } = await supabaseClient
@@ -3090,7 +3090,7 @@ document.getElementById('export-stock-csv-btn')?.addEventListener('click', async
       const qty = c.quantity || 1;
       const price = c.price_at_time || 0;
       const total = qty * price;
-      
+
       let paid = "Non";
       if (price === 0) {
         paid = "Gratuite";
@@ -3165,7 +3165,7 @@ document.getElementById('export-stock-csv-btn')?.addEventListener('click', async
 // --- MODAL RECHARGEMENT DE CREDIT MEMBRE ---
 let activeCreditMember = null;
 
-window.openCreditModal = async function(memberId, memberName, currentCredit = 0) {
+window.openCreditModal = async function (memberId, memberName, currentCredit = 0) {
   activeCreditMember = { id: memberId, name: memberName, credit: currentCredit };
 
   const modal = document.getElementById('credit-modal');
@@ -3182,11 +3182,11 @@ window.openCreditModal = async function(memberId, memberName, currentCredit = 0)
   if (title) title.innerHTML = `<i data-lucide="wallet" style="color: #22c55e;"></i> Créditer un compte`;
   if (memberNameSpan) memberNameSpan.textContent = `Membre : ${memberName}`;
   if (desc) desc.textContent = `Ajouter du crédit d'avance (cagnotte). Si le membre a une ardoise, elle sera apurée en priorité.`;
-  
+
   // Récupérer le solde exact (ardoise et crédit)
   const { data: unpaidCons } = await supabaseClient.from('consumptions').select('price_at_time, quantity').eq('member_id', memberId).eq('is_paid', false);
   const balanceDue = unpaidCons?.reduce((acc, c) => acc + (c.price_at_time * (c.quantity || 1)), 0) || 0;
-  
+
   const { data: prof } = await supabaseClient.from('profiles').select('credit_balance').eq('id', memberId).maybeSingle();
   const exactCredit = parseFloat(prof?.credit_balance) || 0;
   activeCreditMember.credit = exactCredit;
@@ -3217,7 +3217,7 @@ window.openCreditModal = async function(memberId, memberName, currentCredit = 0)
   if (typeof lucide !== 'undefined') lucide.createIcons();
 };
 
-window.resetMemberCreditToZero = async function() {
+window.resetMemberCreditToZero = async function () {
   if (!activeCreditMember) return;
   const memberName = activeCreditMember.name;
   const oldCredit = activeCreditMember.credit || 0;
@@ -3250,7 +3250,7 @@ window.resetMemberCreditToZero = async function() {
         created_by_name: `${adminName} (Admin)`,
         note: `Remise à zéro du crédit (${oldCredit.toFixed(2)}€ effacés)`
       });
-    } catch(e) {}
+    } catch (e) { }
 
     activeCreditMember.credit = 0;
     if (activeCreditMember.id === currentUser.id && currentUser.profile) {
@@ -3261,14 +3261,14 @@ window.resetMemberCreditToZero = async function() {
     alert(`Le crédit de ${memberName} a bien été remis à 0.00 €.`);
     loadAppData();
     if (typeof loadAdminData === 'function') loadAdminData();
-  } catch(err) {
+  } catch (err) {
     alert("Erreur lors de la remise à zéro : " + err.message);
   } finally {
     toggleLoading(false);
   }
 };
 
-window.setCreditQuickAmount = function(amount) {
+window.setCreditQuickAmount = function (amount) {
   const input = document.getElementById('credit-amount-input');
   if (input) {
     input.value = amount.toFixed(2);
@@ -3402,8 +3402,8 @@ async function clearMemberBalance(memberId) {
   if (!confirm("Marquer TOUTE l'ardoise comme payée pour ce membre ?")) return;
 
   show('loading');
-  
-  const payload = { 
+
+  const payload = {
     is_paid: true,
     paid_at: new Date().toISOString(),
     paid_by_name: currentUser ? (currentUser.full_name || currentUser.email) : 'Admin'
@@ -3608,13 +3608,13 @@ document.getElementById('save-drink-btn').addEventListener('click', async () => 
     const catSelect = document.getElementById('drink-category');
     const category = catSelect ? catSelect.value : getItemCategory({ name });
     const alert_threshold = document.getElementById('drink-alert-threshold').value;
-    const drinkData = { 
-      name, 
-      price: parseFloat(price), 
-      icon, 
-      image_url, 
+    const drinkData = {
+      name,
+      price: parseFloat(price),
+      icon,
+      image_url,
       alert_threshold: parseInt(alert_threshold) || 0,
-      category 
+      category
     };
 
     let res;
