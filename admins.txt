@@ -56,5 +56,6 @@ L'onglet Tournois est conçu pour les vendredis soirs !
 3. Cliquez sur l'icône "Appareil Photo" pour générer une belle image du classement.
 
 ## 5. Suivre les Statistiques
-- Évolution des Ventes : Choisissez la saison sportive. Les barres représentent ce que vous avez vendu chaque mois. La ligne indique votre cagnotte cumulée.
+- Évolution des Ventes : Choisissez la saison sportive. Les barres représentent ce qui a été consommé chaque mois (vert pour la part réglée, rouge pour les ardoises non payées). La ligne jaune indique votre cagnotte cumulée.
 - Ventes par Article : Pour voir quelles boissons se vendent le plus chaque mois.
+

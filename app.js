@@ -1,5 +1,5 @@
 // Portail Unifié - Billard & Équitation
-console.log("Portail Unifié : Démarrage du script v2.8.4...");
+console.log("Portail Unifié : Démarrage du script v2.8.5...");
 let supabaseClient = null;
 let currentUser = null;
 let drinks = [];
@@ -60,19 +60,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     let isSeasonSelectorInitialized = false;
     let allConsData = null;
 
-    async function renderSalesChart() {
+    async function renderSalesChart(forceRefresh = false) {
       const canvas = document.getElementById('salesChart');
       if (!canvas) return;
 
       try {
-        if (!allConsData) {
+        if (!allConsData || forceRefresh) {
           const { data: consData, error } = await supabaseClient
             .from('consumptions')
-            .select('created_at, price_at_time, quantity')
+            .select('created_at, price_at_time, quantity, is_paid')
             .order('created_at', { ascending: true });
 
           if (error) throw error;
-          allConsData = consData;
+          allConsData = consData || [];
         }
 
         const selector = document.getElementById('season-selector');
@@ -114,8 +114,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         const selectedSeason = selector ? parseInt(selector.value) : currentSeason;
         
         const months = ["Sept", "Oct", "Nov", "Déc", "Jan", "Fév", "Mars", "Avr", "Mai", "Juin", "Juil", "Août"];
-        const monthlySales = new Array(12).fill(0);
+        const monthlyPaid = new Array(12).fill(0);
+        const monthlyUnpaid = new Array(12).fill(0);
+        const monthlyTotal = new Array(12).fill(0);
         let totalRevenue = 0;
+        let totalPaid = 0;
+        let totalUnpaid = 0;
         
         allConsData.forEach(c => {
           const d = new Date(c.created_at);
@@ -129,20 +133,36 @@ document.addEventListener('DOMContentLoaded', async () => {
             const price = c.price_at_time || 0;
             const amount = qty * price;
             
-            monthlySales[index] += amount;
+            monthlyTotal[index] += amount;
             totalRevenue += amount;
+
+            if (c.is_paid) {
+              monthlyPaid[index] += amount;
+              totalPaid += amount;
+            } else {
+              monthlyUnpaid[index] += amount;
+              totalUnpaid += amount;
+            }
           }
         });
         
-        document.getElementById('stat-total-sales').textContent = totalRevenue.toFixed(2).replace(/\./g, ',') + ' €';
+        const totalSalesEl = document.getElementById('stat-total-sales');
+        if (totalSalesEl) {
+          totalSalesEl.textContent = totalRevenue.toFixed(2).replace(/\./g, ',') + ' €';
+        }
+
+        const totalUnpaidEl = document.getElementById('stat-total-unpaid');
+        if (totalUnpaidEl) {
+          totalUnpaidEl.textContent = totalUnpaid.toFixed(2).replace(/\./g, ',') + ' €';
+        }
 
         const cumulativeSales = [];
         let cum = 0;
-        for (let i = 0; i < monthlySales.length; i++) {
+        for (let i = 0; i < monthlyTotal.length; i++) {
           if (selectedSeason === currentSeason && i > currentMonthIndex) {
             cumulativeSales.push(null);
           } else {
-            cum += monthlySales[i];
+            cum += monthlyTotal[i];
             cumulativeSales.push(cum);
           }
         }
@@ -171,26 +191,46 @@ document.addEventListener('DOMContentLoaded', async () => {
                 pointBackgroundColor: '#eab308',
                 tension: 0.3,
                 fill: false,
-                yAxisID: 'y1'
+                yAxisID: 'y1',
+                order: 1
               },
               {
                 type: 'bar',
-                label: 'CA Mensuel (€)',
-                data: monthlySales,
-                backgroundColor: 'rgba(16, 185, 129, 0.6)',
+                label: 'CA Payé (€)',
+                data: monthlyPaid,
+                backgroundColor: 'rgba(16, 185, 129, 0.65)',
                 borderColor: 'rgba(16, 185, 129, 1)',
                 borderWidth: 1,
                 borderRadius: 4,
-                yAxisID: 'y'
+                stack: 'monthlySales',
+                yAxisID: 'y',
+                order: 2
+              },
+              {
+                type: 'bar',
+                label: 'Ardoises (Non réglé) (€)',
+                data: monthlyUnpaid,
+                backgroundColor: 'rgba(239, 68, 68, 0.75)',
+                borderColor: 'rgba(239, 68, 68, 1)',
+                borderWidth: 1,
+                borderRadius: 4,
+                stack: 'monthlySales',
+                yAxisID: 'y',
+                order: 2
               }
             ]
           },
           options: {
             responsive: true,
             maintainAspectRatio: false,
+            interaction: {
+              mode: 'index',
+              intersect: false
+            },
             scales: {
               y: {
                 type: 'linear',
+                stacked: true,
                 display: true,
                 position: 'left',
                 beginAtZero: true,
@@ -203,6 +243,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               },
               y1: {
                 type: 'linear',
+                stacked: false,
                 display: true,
                 position: 'right',
                 beginAtZero: true,
@@ -214,6 +255,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 title: { display: true, text: 'Cumul', color: '#eab308', font: { size: 10 } }
               },
               x: {
+                stacked: true,
                 ticks: { color: textColor },
                 grid: { display: false, color: gridColor }
               }
@@ -223,14 +265,30 @@ document.addEventListener('DOMContentLoaded', async () => {
                 labels: { color: '#f8fafc', font: { family: "'Outfit', sans-serif" } }
               },
               tooltip: {
-                backgroundColor: 'rgba(5, 8, 22, 0.9)',
+                backgroundColor: 'rgba(5, 8, 22, 0.95)',
                 titleColor: '#f8fafc',
                 bodyColor: '#f8fafc',
                 borderColor: 'rgba(255, 255, 255, 0.1)',
                 borderWidth: 1,
+                padding: 10,
                 callbacks: {
                   label: function (context) {
-                    return context.dataset.label + ' : ' + context.parsed.y.toFixed(2).replace(/\./g, ',') + ' €';
+                    if (context.parsed.y === null || context.parsed.y === undefined) return '';
+                    return ' ' + context.dataset.label + ' : ' + context.parsed.y.toFixed(2).replace(/\./g, ',') + ' €';
+                  },
+                  footer: function (tooltipItems) {
+                    let totalMonth = 0;
+                    let hasBars = false;
+                    tooltipItems.forEach(item => {
+                      if (item.dataset.yAxisID === 'y') {
+                        totalMonth += item.parsed.y || 0;
+                        hasBars = true;
+                      }
+                    });
+                    if (hasBars && totalMonth > 0) {
+                      return ' Total mensuel : ' + totalMonth.toFixed(2).replace(/\./g, ',') + ' €';
+                    }
+                    return '';
                   }
                 }
               }
@@ -1419,7 +1477,7 @@ function initNavigation() {
 
       if (paneId === 'adm-stats') {
         if (typeof renderSalesChart === 'function') {
-          renderSalesChart();
+          renderSalesChart(true);
         }
         if (typeof renderItemsMonthlyChart === 'function') {
           renderItemsMonthlyChart();
