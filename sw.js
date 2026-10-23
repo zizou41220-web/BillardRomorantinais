@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bcr-cache-v35';
+const CACHE_NAME = 'bcr-cache-v37';
 const urlsToCache = [
   './',
   './index.html',
@@ -33,6 +33,20 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
+  // Navigation / document HTML : Réseau en priorité pour toujours avoir la dernière version
+  if (event.request.mode === 'navigate' || event.request.destination === 'document') {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          const responseClone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseClone));
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request)
       .then(response => {
@@ -40,3 +54,4 @@ self.addEventListener('fetch', event => {
       })
   );
 });
+

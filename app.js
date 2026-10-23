@@ -1,5 +1,5 @@
 // Portail Unifié - Billard & Équitation
-console.log("Portail Unifié : Démarrage du script v2.8.1...");
+console.log("Portail Unifié : Démarrage du script v2.8.3...");
 let supabaseClient = null;
 let currentUser = null;
 let drinks = [];
@@ -15,6 +15,26 @@ function isMembership(drink) {
   const name = (drink.name || '').toLowerCase();
   return name.includes('adhésion') || name.includes('adhesion') || name.includes('abonnement');
 }
+
+function getItemCategory(drink) {
+  if (!drink) return 'bar';
+  if (drink.category) {
+    const cat = String(drink.category).toLowerCase().trim();
+    if (cat === 'billard' || cat === 'billiard' || cat === 'materiel') return 'billard';
+    return 'bar';
+  }
+  const name = (drink.name || '').toLowerCase();
+  const billiardKeywords = [
+    'procédé', 'procede', 'craie', 'crai', 'taom',
+    'virole', 'embout', 'queue', 'flèche', 'fleche',
+    'chiffon', 'gant', 'kamui', 'triangle', 'bille'
+  ];
+  if (billiardKeywords.some(kw => name.includes(kw))) {
+    return 'billard';
+  }
+  return 'bar';
+}
+window.getItemCategory = getItemCategory;
 
 document.addEventListener('DOMContentLoaded', async () => {
   console.log("DOM chargé, initialisation...");
@@ -774,16 +794,25 @@ function applyRoleAccessControl() {
         return;
       }
       
-      const sortedDrinks = [...drinks].sort((a, b) => a.name.localeCompare(b.name));
+      const sortedDrinks = [...drinks].sort((a, b) => {
+        const catA = getItemCategory(a);
+        const catB = getItemCategory(b);
+        if (catA !== catB) return catA === 'bar' ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
       
       sortedDrinks.forEach(drink => {
         if (isMembership(drink)) return;
+        const isBilliard = getItemCategory(drink) === 'billard';
+        const catBadge = isBilliard
+          ? `<span style="font-size:0.7rem; padding:1px 6px; border-radius:4px; background:rgba(245,158,11,0.2); color:#fcd34d; font-weight:600; margin-left:6px;">🎱 Billard</span>`
+          : `<span style="font-size:0.7rem; padding:1px 6px; border-radius:4px; background:rgba(59,130,246,0.15); color:#93c5fd; font-weight:600; margin-left:6px;">🥤 Bar</span>`;
     
         const tr = document.createElement('tr');
         tr.style.borderBottom = '1px solid rgba(255, 255, 255, 0.05)';
         tr.innerHTML = `
           <td style="text-align: left; padding: 0.8rem 0.5rem;">
-            <div style="font-weight: 600;">${drink.name}</div>
+            <div style="font-weight: 600; display:inline-flex; align-items:center;">${drink.name}${catBadge}</div>
           </td>
           <td style="padding: 0.8rem 0.5rem; text-align: center;">${drink.price.toFixed(2)}€</td>
           <td style="padding: 0.8rem 0.5rem; text-align: center;">
@@ -1985,22 +2014,51 @@ function renderManagementUI() {
 
   updateSoldeDisplay();
 
-  // Drinks List
+  // Drinks List (Séparé en deux zones distinctes : Bar & Billard)
   const drinkList = document.getElementById('drinks-list');
-  if (drinkList && drinks) {
-    drinkList.innerHTML = drinks.map(d => {
-      const visual = d.image_url
-        ? `<img src="${d.image_url}" alt="${d.name}" class="drink-image">`
-        : `<i data-lucide="${d.icon || 'glass-water'}"></i>`;
+  const barList = document.getElementById('drinks-bar-list');
+  const billiardList = document.getElementById('drinks-billiard-list');
 
-      return `
-        <div class="drink-item" onclick="logConsumption(${d.id}, '${(d.name || '').replace(/'/g, "\\'")}', ${d.price})" style="position: relative;">
-            ${visual}
-            <span>${d.name || 'Boisson'}</span>
-            <span class="drink-price">${d.price}€</span>
-        </div>
-        `;
-    }).join('');
+  const renderDrinkCard = d => {
+    const defaultIcon = getItemCategory(d) === 'billard' ? 'circle-dot' : 'glass-water';
+    const visual = d.image_url
+      ? `<img src="${d.image_url}" alt="${d.name}" class="drink-image">`
+      : `<i data-lucide="${d.icon || defaultIcon}"></i>`;
+
+    return `
+      <div class="drink-item" onclick="logConsumption(${d.id}, '${(d.name || '').replace(/'/g, "\\'")}', ${d.price})" style="position: relative;">
+          ${visual}
+          <span>${d.name || 'Article'}</span>
+          <span class="drink-price">${d.price}€</span>
+      </div>
+      `;
+  };
+
+  if (drinks) {
+    const visibleDrinks = drinks.filter(d => !isMembership(d));
+    const barDrinks = visibleDrinks.filter(d => getItemCategory(d) !== 'billard');
+    const billiardDrinks = visibleDrinks.filter(d => getItemCategory(d) === 'billard');
+
+    if (barList) {
+      if (barDrinks.length === 0) {
+        barList.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--text-muted); padding: 1.5rem; font-size: 0.9rem;">Aucune boisson ou en-cas disponible.</div>`;
+      } else {
+        barList.innerHTML = barDrinks.map(renderDrinkCard).join('');
+      }
+    }
+
+    if (billiardList) {
+      if (billiardDrinks.length === 0) {
+        billiardList.innerHTML = `<div style="grid-column: 1 / -1; text-align: center; color: var(--text-muted); padding: 1.5rem; font-size: 0.9rem;">Aucun consommable de billard disponible.</div>`;
+      } else {
+        billiardList.innerHTML = billiardDrinks.map(renderDrinkCard).join('');
+      }
+    }
+
+    // Rétrocompatibilité : on peuple aussi drinks-list s'il existe
+    if (drinkList) {
+      drinkList.innerHTML = visibleDrinks.map(renderDrinkCard).join('');
+    }
   }
 
   // History
@@ -2486,11 +2544,19 @@ async function loadAdminData() {
   dBody.innerHTML = '';
   drinks.forEach(d => {
     const row = document.createElement('tr');
-    const preview = d.image_url ? `<img src="${d.image_url}" style="width:32px;height:32px;object-fit:cover;border-radius:4px;" title="${d.image_url}" alt="">` : `<i data-lucide="${d.icon}"></i>`;
+    const defaultIcon = getItemCategory(d) === 'billard' ? 'circle-dot' : 'glass-water';
+    const preview = d.image_url ? `<img src="${d.image_url}" style="width:32px;height:32px;object-fit:cover;border-radius:4px;" title="${d.image_url}" alt="">` : `<i data-lucide="${d.icon || defaultIcon}"></i>`;
     const link = d.image_url ? `<a href="${d.image_url}" target="_blank" style="font-size: 0.7rem; color: var(--primary); display: block;">Voir</a>` : '';
+    const catBadge = getItemCategory(d) === 'billard'
+      ? `<span class="category-badge billiard-badge" style="font-size:0.65rem; padding:1px 6px; margin-top:3px; display:inline-block;">🎱 Billard</span>`
+      : `<span class="category-badge bar-badge" style="font-size:0.65rem; padding:1px 6px; margin-top:3px; display:inline-block;">🥤 Bar / Snack</span>`;
+
     row.innerHTML = `
           <td>${preview}${link}</td>
-          <td>${d.name}</td>
+          <td>
+            <div style="font-weight:600;">${d.name}</div>
+            ${catBadge}
+          </td>
           <td>${d.price}€</td>
           <td>
             <div style="display: flex; gap: 0.5rem;">
@@ -3434,9 +3500,11 @@ async function uploadToSupabase(file) {
 // Drink CRUD
 document.getElementById('add-drink-btn').addEventListener('click', () => {
   editingDrinkId = null;
-  document.getElementById('drink-modal-title').textContent = "Ajouter une boisson";
+  document.getElementById('drink-modal-title').textContent = "Ajouter un article / boisson";
   document.getElementById('drink-name').value = '';
   document.getElementById('drink-price').value = '';
+  const catSelect = document.getElementById('drink-category');
+  if (catSelect) catSelect.value = 'bar';
   document.getElementById('drink-icon').value = 'cup-soda';
   document.getElementById('drink-alert-threshold').value = '0';
   document.getElementById('drink-image-url').value = '';
@@ -3449,9 +3517,11 @@ function editDrink(id) {
   if (!drink) return;
 
   editingDrinkId = id;
-  document.getElementById('drink-modal-title').textContent = "Modifier la boisson";
+  document.getElementById('drink-modal-title').textContent = "Modifier l'article";
   document.getElementById('drink-name').value = drink.name;
   document.getElementById('drink-price').value = drink.price;
+  const catSelect = document.getElementById('drink-category');
+  if (catSelect) catSelect.value = getItemCategory(drink);
   document.getElementById('drink-alert-threshold').value = drink.alert_threshold || 0;
   document.getElementById('drink-icon').value = drink.icon || 'cup-soda';
   document.getElementById('drink-image-url').value = drink.image_url || '';
@@ -3477,14 +3547,33 @@ document.getElementById('save-drink-btn').addEventListener('click', async () => 
       if (uploadedUrl) image_url = uploadedUrl;
     }
 
+    const catSelect = document.getElementById('drink-category');
+    const category = catSelect ? catSelect.value : getItemCategory({ name });
     const alert_threshold = document.getElementById('drink-alert-threshold').value;
-    const drinkData = { name, price: parseFloat(price), icon, image_url, alert_threshold: parseInt(alert_threshold) || 0 };
+    const drinkData = { 
+      name, 
+      price: parseFloat(price), 
+      icon, 
+      image_url, 
+      alert_threshold: parseInt(alert_threshold) || 0,
+      category 
+    };
 
     let res;
     if (editingDrinkId) {
       res = await supabaseClient.from('drinks').update(drinkData).eq('id', editingDrinkId);
+      // Fallback si la colonne category n'est pas encore créée en SQL dans Supabase
+      if (res && res.error && res.error.message && res.error.message.includes('category')) {
+        delete drinkData.category;
+        res = await supabaseClient.from('drinks').update(drinkData).eq('id', editingDrinkId);
+      }
     } else {
       res = await supabaseClient.from('drinks').insert(drinkData);
+      // Fallback si la colonne category n'est pas encore créée en SQL dans Supabase
+      if (res && res.error && res.error.message && res.error.message.includes('category')) {
+        delete drinkData.category;
+        res = await supabaseClient.from('drinks').insert(drinkData);
+      }
     }
 
     hide('loading');

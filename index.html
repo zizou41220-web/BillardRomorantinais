@@ -14,6 +14,7 @@
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js').then(reg => {
+          reg.update();
           console.log('ServiceWorker enregistré:', reg.scope);
         }).catch(err => {
           console.log('Erreur ServiceWorker:', err);
@@ -21,7 +22,7 @@
       });
     }
   </script>
-  <link rel="stylesheet" href="style.css?v=2.4.3">
+  <link rel="stylesheet" href="style.css?v=2.4.4">
   <link rel="stylesheet" href="tournament_hero.css">
   <style>
     /* Force modal-overlay display flex when active, completely bypassing external CSS cache */
@@ -209,7 +210,7 @@
           <i data-lucide="log-out" style="width: 14px; height: 14px;"></i> Se déconnecter
         </button>
         <div style="text-align: center; margin-top: 1rem; font-size: 0.75rem; color: rgba(255, 255, 255, 0.3);">
-          v2.8.2
+          v2.8.3
         </div>
       </div>
     </nav>
@@ -246,7 +247,7 @@
             <img src="Logo.jpg" alt="BC41" onerror="this.style.display='none'">
           </div>
           <span class="mobile-title">Billard Blackball Romorantinais <span
-              style="font-size:0.65rem; color:var(--text-muted); font-weight:normal;">v2.8.2</span></span>
+              style="font-size:0.65rem; color:var(--text-muted); font-weight:normal;">v2.8.3</span></span>
         </div>
 
         <div class="user-profile" id="user-profile-menu-trigger">
@@ -352,13 +353,35 @@
           </div>
 
           <div class="management-grid">
-            <!-- Colonne Boissons -->
-            <div class="card drinks-card">
-              <h3><i data-lucide="coffee"></i> Consommations</h3>
-              <p class="card-subtitle">Un clic pour enregistrer votre consommation</p>
-              <div id="drinks-list" class="drink-grid">
-                <!-- Injecté par JS -->
+            <!-- Colonne Consommations : Deux zones distinctes (Boissons & Billard) -->
+            <div class="consumptions-zones">
+              
+              <!-- Zone 1 : Boissons & En-cas -->
+              <div class="card drinks-card">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.35rem; flex-wrap: wrap; gap: 0.5rem;">
+                  <h3 style="margin-bottom: 0;"><i data-lucide="coffee"></i> Boissons & En-cas</h3>
+                  <span class="category-badge bar-badge">🥤 Bar & Friandises</span>
+                </div>
+                <p class="card-subtitle" style="margin-bottom: 1.25rem;">Un clic pour enregistrer votre boisson ou collation</p>
+                <div id="drinks-bar-list" class="drink-grid">
+                  <!-- Injecté par JS -->
+                </div>
               </div>
+
+              <!-- Zone 2 : Matériel & Consommables Billard -->
+              <div class="card billiard-card">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.35rem; flex-wrap: wrap; gap: 0.5rem;">
+                  <h3 style="margin-bottom: 0;"><i data-lucide="circle-dot"></i> Matériel & Consommables Billard</h3>
+                  <span class="category-badge billiard-badge">🎱 Billard</span>
+                </div>
+                <p class="card-subtitle" style="margin-bottom: 1.25rem;">Craies, procédés et accessoires de jeu</p>
+                <div id="drinks-billiard-list" class="drink-grid">
+                  <!-- Injecté par JS -->
+                </div>
+              </div>
+
+              <!-- Ancien container masqué pour rétrocompatibilité totale -->
+              <div id="drinks-list" style="display: none;"></div>
             </div>
 
             <!-- Colonne Historique -->
@@ -934,7 +957,7 @@
               style="display: flex; gap: 1rem; border-bottom: 1px solid var(--border); width: 100%; padding-bottom: 0.5rem; flex-wrap: wrap;">
               <button class="btn-tab active" data-tab="adm-members">Membres</button>
               <button class="btn-tab" data-tab="adm-consumptions">Consommations</button>
-              <button class="btn-tab" data-tab="adm-drinks">Boissons</button>
+              <button class="btn-tab" data-tab="adm-drinks">Articles & Boissons</button>
               <button class="btn-tab" data-tab="adm-stocks">Stock Boissons</button>
               <button class="btn-tab" data-tab="adm-stats">Statistiques</button>
             </div>
@@ -1185,6 +1208,13 @@
             <div class="input-group">
               <label>Prix (€)</label>
               <input type="number" step="0.5" id="drink-price">
+            </div>
+            <div class="input-group">
+              <label>Catégorie</label>
+              <select id="drink-category" style="width: 100%; padding: 0.8rem 1rem; border-radius: 10px; border: 1px solid var(--border); background: #0f172a; color: var(--text-main); font-weight: 500;">
+                <option value="bar">🥤 Boissons & En-cas (Bar / Friandises)</option>
+                <option value="billard">🎱 Matériel & Consommables Billard</option>
+              </select>
             </div>
             <div class="input-group">
               <label>Seuil d'alerte (Quantité)</label>
@@ -1684,7 +1714,7 @@
     src="https://connect.facebook.net/fr_FR/sdk.js#xfbml=1&version=v17.0"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <script src="tournaments.js?v=2.4.8" defer></script>
-  <script src="app.js?v=2.9.16" defer></script>
+  <script src="app.js?v=2.9.17" defer></script>
   <script>
     // Initialisation des icônes Lucide
     lucide.createIcons();

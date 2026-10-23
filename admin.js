@@ -1,3 +1,22 @@
+function getItemCategory(drink) {
+  if (!drink) return 'bar';
+  if (drink.category) {
+    const cat = String(drink.category).toLowerCase().trim();
+    if (cat === 'billard' || cat === 'billiard' || cat === 'materiel') return 'billard';
+    return 'bar';
+  }
+  const name = (drink.name || '').toLowerCase();
+  const billiardKeywords = [
+    'procédé', 'procede', 'craie', 'crai', 'taom',
+    'virole', 'embout', 'queue', 'flèche', 'fleche',
+    'chiffon', 'gant', 'kamui', 'triangle', 'bille'
+  ];
+  if (billiardKeywords.some(kw => name.includes(kw))) {
+    return 'billard';
+  }
+  return 'bar';
+}
+
 async function loadAdminData() {
   const todayStr = new Date().toISOString().split('T')[0];
 
@@ -130,11 +149,19 @@ async function loadAdminData() {
   dBody.innerHTML = '';
   drinks.forEach(d => {
     const row = document.createElement('tr');
-    const preview = d.image_url ? `<img src="${d.image_url}" style="width:32px;height:32px;object-fit:cover;border-radius:4px;" title="${d.image_url}" alt="">` : `<i data-lucide="${d.icon}"></i>`;
+    const defaultIcon = getItemCategory(d) === 'billard' ? 'circle-dot' : 'glass-water';
+    const preview = d.image_url ? `<img src="${d.image_url}" style="width:32px;height:32px;object-fit:cover;border-radius:4px;" title="${d.image_url}" alt="">` : `<i data-lucide="${d.icon || defaultIcon}"></i>`;
     const link = d.image_url ? `<a href="${d.image_url}" target="_blank" style="font-size: 0.7rem; color: var(--primary); display: block;">Voir</a>` : '';
+    const catBadge = getItemCategory(d) === 'billard'
+      ? `<span class="category-badge billiard-badge" style="font-size:0.65rem; padding:1px 6px; margin-top:3px; display:inline-block;">🎱 Billard</span>`
+      : `<span class="category-badge bar-badge" style="font-size:0.65rem; padding:1px 6px; margin-top:3px; display:inline-block;">🥤 Bar / Snack</span>`;
+
     row.innerHTML = `
           <td>${preview}${link}</td>
-          <td>${d.name}</td>
+          <td>
+            <div style="font-weight:600;">${d.name}</div>
+            ${catBadge}
+          </td>
           <td>${d.price}€</td>
           <td>
             <div style="display: flex; gap: 0.5rem;">
@@ -394,9 +421,11 @@ function editDrink(id) {
   if (!drink) return;
 
   editingDrinkId = id;
-  document.getElementById('drink-modal-title').textContent = "Modifier la boisson";
+  document.getElementById('drink-modal-title').textContent = "Modifier l'article";
   document.getElementById('drink-name').value = drink.name;
   document.getElementById('drink-price').value = drink.price;
+  const catSelect = document.getElementById('drink-category');
+  if (catSelect) catSelect.value = getItemCategory(drink);
   document.getElementById('drink-alert-threshold').value = drink.alert_threshold || 0;
   document.getElementById('drink-icon').value = drink.icon || 'cup-soda';
   document.getElementById('drink-image-url').value = drink.image_url || '';
@@ -420,18 +449,35 @@ document.getElementById('save-drink-btn').addEventListener('click', async () => 
     if (uploadedUrl) image_url = uploadedUrl;
   }
 
+  const catSelect = document.getElementById('drink-category');
+  const category = catSelect ? catSelect.value : getItemCategory({ name });
   const alert_threshold = document.getElementById('drink-alert-threshold').value;
-  const drinkData = { name, price: parseFloat(price), icon, image_url, alert_threshold: parseInt(alert_threshold) || 0 };
+  const drinkData = { 
+    name, 
+    price: parseFloat(price), 
+    icon, 
+    image_url, 
+    alert_threshold: parseInt(alert_threshold) || 0,
+    category 
+  };
 
   let res;
   if (editingDrinkId) {
     res = await supabaseClient.from('drinks').update(drinkData).eq('id', editingDrinkId);
+    if (res && res.error && res.error.message && res.error.message.includes('category')) {
+      delete drinkData.category;
+      res = await supabaseClient.from('drinks').update(drinkData).eq('id', editingDrinkId);
+    }
   } else {
     res = await supabaseClient.from('drinks').insert(drinkData);
+    if (res && res.error && res.error.message && res.error.message.includes('category')) {
+      delete drinkData.category;
+      res = await supabaseClient.from('drinks').insert(drinkData);
+    }
   }
 
   hide('loading');
-  if (res.error) alert("Erreur: " + res.error.message);
+  if (res && res.error) alert("Erreur: " + res.error.message);
   else {
     closeModal('drink-modal');
     loadAppData();
