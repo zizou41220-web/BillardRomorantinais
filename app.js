@@ -1486,44 +1486,6 @@ function initNavigation() {
     });
   });
 
-  // Toggle Dropdown Profile Menu
-  const profileTrigger = document.getElementById('user-profile-menu-trigger');
-  const profileDropdown = document.getElementById('profile-dropdown');
-  if (profileTrigger && profileDropdown) {
-    profileTrigger.addEventListener('click', (e) => {
-      e.stopPropagation();
-      profileDropdown.classList.toggle('hidden');
-    });
-
-    // Fermer le dropdown en cliquant n'importe où
-    document.addEventListener('click', () => {
-      profileDropdown.classList.add('hidden');
-    });
-  }
-
-  // Bind Profile Dropdown Buttons
-  const btnChangePass = document.getElementById('dropdown-btn-change-password');
-  if (btnChangePass) {
-    btnChangePass.addEventListener('click', (e) => {
-      e.stopPropagation();
-      profileDropdown.classList.add('hidden');
-      document.getElementById('change-password-modal').classList.remove('hidden');
-    });
-  }
-
-  const btnLogoutDropdown = document.getElementById('dropdown-btn-logout');
-  if (btnLogoutDropdown) {
-    btnLogoutDropdown.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      profileDropdown.classList.add('hidden');
-      if (confirm("Voulez-vous vraiment vous déconnecter ?")) {
-        toggleLoading(true);
-        const { error } = await supabaseClient.auth.signOut();
-        toggleLoading(false);
-        if (error) alert("Erreur lors de la déconnexion : " + error.message);
-      }
-    });
-  }
 
   // Modal Changement de Mot de Passe
   const cancelChangePassBtn = document.getElementById('cancel-change-password');
@@ -2054,11 +2016,6 @@ function renderManagementUI() {
 
   document.getElementById('user-name').textContent = currentUser.profile?.full_name || 'Membre';
 
-  // Remplir le menu déroulant profil
-  const dropName = document.getElementById('dropdown-user-name');
-  const dropRole = document.getElementById('dropdown-user-role');
-  if (dropName) dropName.textContent = currentUser.profile?.full_name || 'Membre';
-  if (dropRole) dropRole.textContent = currentUser.profile?.role === 'admin' ? 'Administrateur' : 'Membre';
 
   // Mettre à jour l'avatar de la top-bar
   const avatarContainer = document.querySelector('.user-profile .avatar');
