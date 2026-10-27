@@ -19,6 +19,15 @@ Lorsqu'un membre vous règle son ardoise :
 2. Cliquez sur le bouton bleu (icône CB) à côté de son nom.
 3. Le montant total de son ardoise est remboursé et repasse à zéro instantanément.
 
+### Rectifier une erreur de déclaration de consommation
+Si un membre ou un administrateur s'est trompé lors d'une saisie (erreur de boisson, de quantité, ou déclaration involontaire) :
+1. Cliquez sur "Détails" en face du membre dans le Suivi des Ardoises (ou directement sur le bouton "Corriger" dans le tableau "Ardoise en attente" sur la page d'accueil si vous êtes connecté en admin).
+2. Cliquez sur le bouton "Corriger" à côté de la ligne concernée.
+3. Modifiez l'article, la quantité ou le prix unitaire (ou cliquez sur "Supprimer la déclaration" si la consommation n'a jamais eu lieu).
+4. Indiquez **obligatoirement** le motif de la rectification (ex: "Erreur de sélection, a pris un café au lieu d'un soda").
+5. Cliquez sur "Enregistrer" : les stocks de boisson et les montants (ardoise ou crédit) sont automatiquement réajustés et le motif est tracé dans l'historique d'audit.
+
+
 ## 2. La Buvette (Le compte principal)
 En tant qu'administrateur principal, vous avez accès au bouton "BUVETTE" en haut à droite.
 

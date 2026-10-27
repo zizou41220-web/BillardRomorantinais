@@ -2084,6 +2084,12 @@ function renderManagementUI() {
 async function loadHistory() {
   const target = window.servingMemberTarget || currentUser;
   const isServing = !!window.servingMemberTarget;
+  const isAdmin = currentUser?.profile?.role === 'admin';
+
+  const actionTh = document.getElementById('history-admin-action-th');
+  if (actionTh) {
+    actionTh.style.display = isAdmin ? '' : 'none';
+  }
 
   const { data: hist } = await supabaseClient
     .from('consumptions')
@@ -2101,9 +2107,10 @@ async function loadHistory() {
   if (!histBody) return;
 
   const targetName = target.full_name || 'Ce membre';
+  const colspan = isAdmin ? 4 : 3;
 
   if (!hist || hist.length === 0) {
-    histBody.innerHTML = `<tr><td colspan="3" class="text-muted" style="text-align:center; padding: 1.5rem;">${isServing ? `✅ Aucune ardoise en attente pour ${targetName}.` : '✅ Aucune ardoise en attente — vous êtes à jour !'}</td></tr>`;
+    histBody.innerHTML = `<tr><td colspan="${colspan}" class="text-muted" style="text-align:center; padding: 1.5rem;">${isServing ? `✅ Aucune ardoise en attente pour ${targetName}.` : '✅ Aucune ardoise en attente — vous êtes à jour !'}</td></tr>`;
     return;
   }
 
@@ -2114,8 +2121,15 @@ async function loadHistory() {
     const formattedTime = dateObj.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
     const lineTotal = h.price_at_time * (h.quantity || 1);
 
+    const isRectified = h.recorded_by_name && h.recorded_by_name.includes('Rectifié');
+    const auditStyle = isRectified ? 'color: #f59e0b; font-weight: 500;' : 'color: var(--text-muted);';
+
     const auditText = h.recorded_by_name && h.recorded_by_name !== 'Membre (smartphone)'
-      ? `<br><small class="text-muted" style="font-size:0.75rem;">Servi par : ${h.recorded_by_name}</small>`
+      ? `<br><small style="font-size:0.75rem; ${auditStyle}">${isRectified ? '⚠️ ' : 'Servi par : '}${h.recorded_by_name}</small>`
+      : '';
+
+    const actionTd = isAdmin
+      ? `<td style="text-align: right;"><button class="btn btn-outline" style="padding: 2px 8px; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 4px;" onclick="openEditConsumptionModal(${h.id})" title="Rectifier cette déclaration"><i data-lucide="edit-2" style="width: 12px; height: 12px;"></i> Corriger</button></td>`
       : '';
 
     return `
@@ -2123,6 +2137,7 @@ async function loadHistory() {
             <td>${formattedDate} à ${formattedTime}</td>
             <td>${h.drinks?.name || 'Article'}${qtyText}${auditText}</td>
             <td class="slate-due-high">${lineTotal.toFixed(2)}€</td>
+            ${actionTd}
         </tr>
     `;
   }).join('');
@@ -3418,19 +3433,28 @@ async function openMemberConsumptionDetails(memberId, memberName) {
 
     const unpaidBody = document.getElementById('detail-unpaid-list');
     if (unpaidList.length === 0) {
-      unpaidBody.innerHTML = `<tr><td colspan="3" class="text-muted" style="text-align:center;">Aucune boisson en ardoise.</td></tr>`;
+      unpaidBody.innerHTML = `<tr><td colspan="4" class="text-muted" style="text-align:center;">Aucune boisson en ardoise.</td></tr>`;
     } else {
       unpaidBody.innerHTML = unpaidList.map(c => {
         const qtyText = c.quantity && c.quantity > 1 ? ` (x${c.quantity})` : '';
         const dateObj = new Date(c.created_at);
         const formattedDate = `${dateObj.toLocaleDateString('fr-FR')} à ${dateObj.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
         const lineTotal = c.price_at_time * (c.quantity || 1);
-        const auditText = c.recorded_by_name ? `<br><small class="text-muted" style="font-size:0.75rem;">Enregistré par : ${c.recorded_by_name}</small>` : '';
+        const isRectified = c.recorded_by_name && c.recorded_by_name.includes('Rectifié');
+        const auditStyle = isRectified ? 'color: #f59e0b; font-weight: 600;' : 'color: var(--text-muted);';
+        const auditDetails = [];
+        if (c.recorded_by_name) auditDetails.push(`${isRectified ? '⚠️ ' : 'Enregistré par : '}${c.recorded_by_name}`);
+        const auditText = auditDetails.length > 0 ? `<br><small style="font-size:0.75rem; ${auditStyle}">${auditDetails.join(' | ')}</small>` : '';
         return `
             <tr>
               <td>${formattedDate}</td>
               <td>${c.drinks?.name || 'Article'}${qtyText}${auditText}</td>
               <td class="text-danger" style="font-weight:600;">${lineTotal.toFixed(2)}€</td>
+              <td style="text-align: right;">
+                <button class="btn btn-outline" style="padding: 2px 7px; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 4px;" onclick="openEditConsumptionModal(${c.id})" title="Rectifier cette déclaration">
+                  <i data-lucide="edit-2" style="width: 12px; height: 12px;"></i> Corriger
+                </button>
+              </td>
             </tr>
           `;
       }).join('');
@@ -3438,23 +3462,30 @@ async function openMemberConsumptionDetails(memberId, memberName) {
 
     const paidBody = document.getElementById('detail-paid-list');
     if (paidList.length === 0) {
-      paidBody.innerHTML = `<tr><td colspan="3" class="text-muted" style="text-align:center;">Aucun historique de règlement.</td></tr>`;
+      paidBody.innerHTML = `<tr><td colspan="4" class="text-muted" style="text-align:center;">Aucun historique de règlement.</td></tr>`;
     } else {
       paidBody.innerHTML = paidList.map(c => {
         const qtyText = c.quantity && c.quantity > 1 ? ` (x${c.quantity})` : '';
         const dateObj = new Date(c.created_at);
         const formattedDate = `${dateObj.toLocaleDateString('fr-FR')} à ${dateObj.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
         const lineTotal = c.price_at_time * (c.quantity || 1);
+        const isRectified = c.recorded_by_name && c.recorded_by_name.includes('Rectifié');
+        const auditStyle = isRectified ? 'color: #f59e0b; font-weight: 600;' : 'color: var(--text-muted);';
         const auditDetails = [];
-        if (c.recorded_by_name) auditDetails.push(`Servi par : ${c.recorded_by_name}`);
+        if (c.recorded_by_name) auditDetails.push(`${isRectified ? '⚠️ ' : 'Servi par : '}${c.recorded_by_name}`);
         if (c.paid_by_name) auditDetails.push(`Règlement : ${c.paid_by_name}`);
-        const auditText = auditDetails.length > 0 ? `<br><small class="text-muted" style="font-size:0.75rem;">${auditDetails.join(' | ')}</small>` : '';
+        const auditText = auditDetails.length > 0 ? `<br><small style="font-size:0.75rem; ${auditStyle}">${auditDetails.join(' | ')}</small>` : '';
 
         return `
             <tr>
               <td>${formattedDate}</td>
               <td>${c.drinks?.name || 'Article'}${qtyText}${auditText}</td>
               <td class="text-success" style="font-weight:600;">${lineTotal.toFixed(2)}€</td>
+              <td style="text-align: right;">
+                <button class="btn btn-outline" style="padding: 2px 7px; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 4px;" onclick="openEditConsumptionModal(${c.id})" title="Rectifier cette déclaration">
+                  <i data-lucide="edit-2" style="width: 12px; height: 12px;"></i> Corriger
+                </button>
+              </td>
             </tr>
           `;
       }).join('');
@@ -3483,6 +3514,360 @@ async function openMemberConsumptionDetails(memberId, memberName) {
   }
 }
 window.openMemberConsumptionDetails = openMemberConsumptionDetails;
+
+// ==============================================================================
+// GESTION DES RECTIFICATIONS DE CONSOMMATION PAR LES ADMINS (MOTIF OBLIGATOIRE)
+// ==============================================================================
+let currentEditingConsumption = null;
+
+async function openEditConsumptionModal(id) {
+  if (!currentUser || currentUser.profile?.role !== 'admin') {
+    alert("Seuls les administrateurs peuvent rectifier une déclaration de consommation.");
+    return;
+  }
+
+  toggleLoading(true);
+  try {
+    // S'assurer que la liste des boissons est disponible
+    if (!drinks || drinks.length === 0) {
+      const { data: dData } = await supabaseClient.from('drinks').select('*').order('name');
+      if (dData) drinks = dData;
+    }
+
+    const { data: cons, error } = await supabaseClient
+      .from('consumptions')
+      .select('*, drinks(*), profiles(id, full_name, email, credit_balance)')
+      .eq('id', id)
+      .single();
+
+    if (error || !cons) {
+      throw error || new Error("Consommation introuvable");
+    }
+
+    currentEditingConsumption = cons;
+
+    // Remplir le select des boissons
+    const drinkSelect = document.getElementById('edit-cons-drink-select');
+    drinkSelect.innerHTML = (drinks || []).map(d => {
+      const selected = String(d.id) === String(cons.drink_id) ? 'selected' : '';
+      return `<option value="${d.id}" data-price="${d.price}" ${selected}>${d.name} (${parseFloat(d.price).toFixed(2)}€)</option>`;
+    }).join('');
+
+    // Si la boisson actuelle n'est plus dans la carte active (archivée ou modifiée), l'ajouter comme option
+    if (cons.drink_id && !drinks.some(d => String(d.id) === String(cons.drink_id))) {
+      const opt = document.createElement('option');
+      opt.value = cons.drink_id;
+      opt.dataset.price = cons.price_at_time;
+      opt.textContent = `${cons.drinks?.name || 'Article'} (${parseFloat(cons.price_at_time).toFixed(2)}€)`;
+      opt.selected = true;
+      drinkSelect.appendChild(opt);
+    }
+
+    document.getElementById('edit-cons-id').value = cons.id;
+    document.getElementById('edit-cons-member-id').value = cons.member_id;
+    document.getElementById('edit-cons-member-name').textContent = cons.profiles?.full_name || cons.profiles?.email || 'Membre';
+
+    const d = new Date(cons.created_at);
+    document.getElementById('edit-cons-date').textContent = `${d.toLocaleDateString('fr-FR')} à ${d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
+
+    const qty = cons.quantity || 1;
+    document.getElementById('edit-cons-qty').value = qty;
+    document.getElementById('edit-cons-price').value = cons.price_at_time;
+    updateEditConsTotal();
+
+    // Audit initial et statut
+    const auditDetails = [];
+    if (cons.recorded_by_name) auditDetails.push(`Enregistré par : ${cons.recorded_by_name}`);
+    if (cons.paid_by_name) auditDetails.push(`Règlement : ${cons.paid_by_name}`);
+    if (cons.is_paid) {
+      auditDetails.push(`<span class="text-success" style="font-weight:600;">Statut : Réglé</span>`);
+    } else {
+      auditDetails.push(`<span class="text-danger" style="font-weight:600;">Statut : En ardoise (non payé)</span>`);
+    }
+    document.getElementById('edit-cons-audit-info').innerHTML = auditDetails.join('<br>');
+
+    // Réinitialiser le champ motif obligatoire
+    document.getElementById('edit-cons-reason').value = '';
+
+    // Écouteurs pour recalculer en direct lors des changements
+    drinkSelect.onchange = () => {
+      const selectedOption = drinkSelect.options[drinkSelect.selectedIndex];
+      if (selectedOption && selectedOption.dataset.price !== undefined) {
+        document.getElementById('edit-cons-price').value = selectedOption.dataset.price;
+      }
+      updateEditConsTotal();
+    };
+    document.getElementById('edit-cons-qty').oninput = updateEditConsTotal;
+    document.getElementById('edit-cons-price').oninput = updateEditConsTotal;
+
+    document.getElementById('edit-consumption-modal').classList.remove('hidden');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+
+  } catch (err) {
+    console.error("Erreur ouverture modal rectification consommation :", err);
+    alert("Impossible d'ouvrir la modification : " + err.message);
+  } finally {
+    toggleLoading(false);
+  }
+}
+window.openEditConsumptionModal = openEditConsumptionModal;
+
+function closeEditConsumptionModal() {
+  const modal = document.getElementById('edit-consumption-modal');
+  if (modal) modal.classList.add('hidden');
+  currentEditingConsumption = null;
+}
+window.closeEditConsumptionModal = closeEditConsumptionModal;
+
+function updateEditConsTotal() {
+  const qty = parseFloat(document.getElementById('edit-cons-qty').value) || 0;
+  const price = parseFloat(document.getElementById('edit-cons-price').value) || 0;
+  const total = qty * price;
+  const el = document.getElementById('edit-cons-total');
+  if (el) el.textContent = `${total.toFixed(2)} €`;
+}
+window.updateEditConsTotal = updateEditConsTotal;
+
+async function submitEditConsumption() {
+  if (!currentEditingConsumption) return;
+
+  const reasonInput = document.getElementById('edit-cons-reason');
+  const reason = reasonInput ? reasonInput.value.trim() : '';
+
+  if (!reason) {
+    alert("⚠️ Le motif de la modification est OBLIGATOIRE.\nVeuillez obligatoirement indiquer la raison de cette correction.");
+    if (reasonInput) reasonInput.focus();
+    return;
+  }
+
+  const newDrinkId = parseInt(document.getElementById('edit-cons-drink-select').value) || document.getElementById('edit-cons-drink-select').value;
+  const newQty = parseInt(document.getElementById('edit-cons-qty').value, 10);
+  const newPrice = parseFloat(document.getElementById('edit-cons-price').value);
+
+  if (isNaN(newQty) || newQty <= 0) {
+    alert("La quantité doit être d'au moins 1. Pour supprimer complètement la consommation, utilisez le bouton rouge 'Supprimer la déclaration'.");
+    return;
+  }
+
+  if (isNaN(newPrice) || newPrice < 0) {
+    alert("Le prix unitaire doit être un nombre positif ou nul.");
+    return;
+  }
+
+  const oldCons = currentEditingConsumption;
+  const oldDrinkId = oldCons.drink_id;
+  const oldQty = oldCons.quantity || 1;
+  const oldPrice = oldCons.price_at_time || 0;
+  const oldTotal = oldPrice * oldQty;
+  const newTotal = newPrice * newQty;
+
+  const adminName = currentUser ? (currentUser.full_name || currentUser.profile?.full_name || currentUser.email) : 'Admin';
+  const todayStr = new Date().toLocaleDateString('fr-FR');
+  const updatedRecordedBy = `${oldCons.recorded_by_name || 'Enregistré'} | Rectifié le ${todayStr} par ${adminName} : ${reason}`;
+
+  toggleLoading(true);
+  try {
+    // 1. Ajustement des stocks de boisson
+    if (String(oldDrinkId) === String(newDrinkId)) {
+      const qtyDiff = oldQty - newQty; // si newQty < oldQty => qtyDiff > 0 (on remet du stock)
+      if (qtyDiff !== 0) {
+        const d = drinks.find(x => String(x.id) === String(oldDrinkId));
+        if (d && d.stock !== null && d.stock !== undefined) {
+          const updatedStock = (d.stock || 0) + qtyDiff;
+          await supabaseClient.from('drinks').update({ stock: updatedStock }).eq('id', oldDrinkId);
+          d.stock = updatedStock;
+        }
+      }
+    } else {
+      // Changement de boisson : réintégrer l'ancienne et déduire la nouvelle
+      const oldD = drinks.find(x => String(x.id) === String(oldDrinkId));
+      if (oldD && oldD.stock !== null && oldD.stock !== undefined) {
+        const updatedOldStock = (oldD.stock || 0) + oldQty;
+        await supabaseClient.from('drinks').update({ stock: updatedOldStock }).eq('id', oldDrinkId);
+        oldD.stock = updatedOldStock;
+      }
+      const newD = drinks.find(x => String(x.id) === String(newDrinkId));
+      if (newD && newD.stock !== null && newD.stock !== undefined) {
+        const updatedNewStock = (newD.stock || 0) - newQty;
+        await supabaseClient.from('drinks').update({ stock: updatedNewStock }).eq('id', newDrinkId);
+        newD.stock = updatedNewStock;
+      }
+    }
+
+    // 2. Si la consommation était déjà réglée par crédit, régulariser le compte crédit
+    if (oldCons.is_paid && oldCons.paid_by_name?.toLowerCase().includes('crédit')) {
+      const priceDiff = oldTotal - newTotal;
+      if (priceDiff !== 0) {
+        const { data: prof } = await supabaseClient
+          .from('profiles')
+          .select('credit_balance')
+          .eq('id', oldCons.member_id)
+          .single();
+        const currentBal = parseFloat(prof?.credit_balance) || 0;
+        const newBal = currentBal + priceDiff;
+        await supabaseClient.from('profiles').update({ credit_balance: newBal }).eq('id', oldCons.member_id);
+
+        try {
+          await supabaseClient.from('credit_transactions').insert({
+            member_id: oldCons.member_id,
+            amount: priceDiff,
+            payment_method: 'Régularisation',
+            created_by_name: adminName,
+            note: `Correction conso #${oldCons.id} : ${reason}`
+          });
+        } catch (e) {
+          console.warn("Table credit_transactions non trouvée :", e);
+        }
+      }
+    }
+
+    // 3. Mettre à jour la ligne dans consumptions
+    const updatePayload = {
+      drink_id: newDrinkId,
+      quantity: newQty,
+      price_at_time: newPrice,
+      recorded_by_name: updatedRecordedBy,
+      note: reason
+    };
+
+    let { error: updateErr } = await supabaseClient
+      .from('consumptions')
+      .update(updatePayload)
+      .eq('id', oldCons.id);
+
+    // Si la colonne 'note' n'existe pas encore dans la table sur Supabase, on retente sans elle
+    if (updateErr && (updateErr.message?.includes('note') || updateErr.code === '42703')) {
+      delete updatePayload.note;
+      const retry = await supabaseClient
+        .from('consumptions')
+        .update(updatePayload)
+        .eq('id', oldCons.id);
+      updateErr = retry.error;
+    }
+
+    if (updateErr) throw updateErr;
+
+    alert("✅ Déclaration de consommation rectifiée avec succès !");
+    closeEditConsumptionModal();
+
+    // Recharger les interfaces
+    const memId = oldCons.member_id;
+    const memName = oldCons.profiles?.full_name || 'Membre';
+    const detailModal = document.getElementById('consumption-detail-modal');
+    if (detailModal && !detailModal.classList.contains('hidden')) {
+      await openMemberConsumptionDetails(memId, memName);
+    }
+    await loadAppData(true);
+    if (typeof loadAdminData === 'function') {
+      await loadAdminData();
+    }
+
+  } catch (err) {
+    console.error("Erreur mise à jour consommation :", err);
+    alert("Erreur lors de la rectification : " + err.message);
+  } finally {
+    toggleLoading(false);
+  }
+}
+window.submitEditConsumption = submitEditConsumption;
+
+async function deleteCurrentConsumption() {
+  if (!currentEditingConsumption) return;
+
+  const reasonInput = document.getElementById('edit-cons-reason');
+  const reason = reasonInput ? reasonInput.value.trim() : '';
+
+  if (!reason) {
+    alert("⚠️ Le motif de suppression est OBLIGATOIRE.\nVeuillez obligatoirement indiquer pourquoi cette déclaration est annulée / supprimée.");
+    if (reasonInput) reasonInput.focus();
+    return;
+  }
+
+  if (!confirm("Voulez-vous vraiment ANNULER et SUPPRIMER cette consommation ?\nLe stock sera réintégré et la suppression sera validée.")) {
+    return;
+  }
+
+  const oldCons = currentEditingConsumption;
+  const adminName = currentUser ? (currentUser.full_name || currentUser.profile?.full_name || currentUser.email) : 'Admin';
+
+  toggleLoading(true);
+  try {
+    // 1. Réintégrer le stock
+    const drink = drinks.find(x => String(x.id) === String(oldCons.drink_id));
+    if (drink && drink.stock !== null && drink.stock !== undefined) {
+      const restoredStock = (drink.stock || 0) + (oldCons.quantity || 1);
+      await supabaseClient.from('drinks').update({ stock: restoredStock }).eq('id', oldCons.drink_id);
+      drink.stock = restoredStock;
+    }
+
+    // 2. Si payé par crédit, rembourser
+    if (oldCons.is_paid && oldCons.paid_by_name?.toLowerCase().includes('crédit')) {
+      const refundAmount = (oldCons.price_at_time || 0) * (oldCons.quantity || 1);
+      if (refundAmount > 0) {
+        const { data: prof } = await supabaseClient
+          .from('profiles')
+          .select('credit_balance')
+          .eq('id', oldCons.member_id)
+          .single();
+        const currentBal = parseFloat(prof?.credit_balance) || 0;
+        const newBal = currentBal + refundAmount;
+        await supabaseClient.from('profiles').update({ credit_balance: newBal }).eq('id', oldCons.member_id);
+
+        try {
+          await supabaseClient.from('credit_transactions').insert({
+            member_id: oldCons.member_id,
+            amount: refundAmount,
+            payment_method: 'Annulation Conso',
+            created_by_name: adminName,
+            note: `Annulation conso #${oldCons.id} (${drink?.name || 'Article'}) : ${reason}`
+          });
+        } catch (e) {
+          console.warn("Table credit_transactions non trouvée :", e);
+        }
+      }
+    } else {
+      // Trace dans credit_transactions si ardoise
+      try {
+        await supabaseClient.from('credit_transactions').insert({
+          member_id: oldCons.member_id,
+          amount: 0,
+          payment_method: 'Annulation Ardoise',
+          created_by_name: adminName,
+          note: `Annulation conso ardoise #${oldCons.id} (${drink?.name || 'Article'}) : ${reason}`
+        });
+      } catch (e) {}
+    }
+
+    // 3. Supprimer de la table consumptions
+    const { error: delErr } = await supabaseClient
+      .from('consumptions')
+      .delete()
+      .eq('id', oldCons.id);
+
+    if (delErr) throw delErr;
+
+    alert("✅ Déclaration de consommation supprimée avec succès et stock réintégré !");
+    closeEditConsumptionModal();
+
+    const memId = oldCons.member_id;
+    const memName = oldCons.profiles?.full_name || 'Membre';
+    const detailModal = document.getElementById('consumption-detail-modal');
+    if (detailModal && !detailModal.classList.contains('hidden')) {
+      await openMemberConsumptionDetails(memId, memName);
+    }
+    await loadAppData(true);
+    if (typeof loadAdminData === 'function') {
+      await loadAdminData();
+    }
+
+  } catch (err) {
+    console.error("Erreur suppression consommation :", err);
+    alert("Erreur lors de la suppression : " + err.message);
+  } finally {
+    toggleLoading(false);
+  }
+}
+window.deleteCurrentConsumption = deleteCurrentConsumption;
 
 async function uploadToSupabase(file) {
   if (!supabaseClient) return null;
