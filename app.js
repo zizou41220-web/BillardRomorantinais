@@ -1,5 +1,5 @@
 // Portail Unifié - Billard & Équitation
-console.log("Portail Unifié : Démarrage du script v2.8.5...");
+console.log("Portail Unifié : Démarrage du script v2.8.6...");
 let supabaseClient = null;
 let currentUser = null;
 let drinks = [];
