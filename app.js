@@ -1,5 +1,5 @@
 // Portail Unifié - Billard & Équitation
-console.log("Portail Unifié : Démarrage du script v2.8.6...");
+console.log("Portail Unifié : Démarrage du script v2.8.7...");
 let supabaseClient = null;
 let currentUser = null;
 let drinks = [];
@@ -2384,7 +2384,7 @@ async function loadAdminData() {
                 <button class="btn btn-outline" style="padding:4px 9px; font-size:0.8rem; display:inline-flex; align-items:center; gap:4px;" title="Historique & Détails" onclick="openMemberConsumptionDetails('${m.id}', '${safeName}')">
                   <i data-lucide="eye" style="width:14px; height:14px;"></i> Détails
                 </button>
-                ${balance > 0 ? `<button class="btn btn-outline" style="border-color:#ef4444; color:#ef4444; padding:4px 9px; font-size:0.8rem; display:inline-flex; align-items:center; gap:4px;" title="Encaisser l'ardoise complète" onclick="clearMemberBalance('${m.id}')"><i data-lucide="check-circle" style="width:14px; height:14px;"></i> Encaisser</button>` : ''}
+                ${balance > 0 ? `<button class="btn btn-outline" style="border-color:#ef4444; color:#ef4444; padding:4px 9px; font-size:0.8rem; display:inline-flex; align-items:center; gap:4px;" title="Encaisser l'ardoise complète" onclick="clearMemberBalance('${m.id}', '${safeName}')"><i data-lucide="check-circle" style="width:14px; height:14px;"></i> Encaisser</button>` : ''}
               </div>
             </td>
           `;
@@ -2476,7 +2476,7 @@ async function loadAdminData() {
               </label>
               <button class="btn" style="background:#2563eb; color:#ffffff; border:1px solid #3b82f6; padding:3px 7px; border-radius:6px; display:inline-flex; align-items:center;" title="Servir au bar pour ce membre" onclick="openBuvetteForMember('${m.id}')"><i data-lucide="coffee" style="width:14px; height:14px;"></i></button>
               <button class="btn btn-outline" style="border-color:#22c55e; color:#22c55e; padding:3px 7px;" title="Créditer le compte" onclick="openCreditModal('${m.id}', '${safeName}', ${credit})"><i data-lucide="wallet" style="width:14px; height:14px;"></i></button>
-              ${balance > 0 ? `<button class="btn btn-outline" style="border-color:#ef4444; color:#ef4444; padding:3px 7px;" title="Encaisser" onclick="clearMemberBalance('${m.id}')"><i data-lucide="check-circle" style="width:14px; height:14px;"></i></button>` : ''}
+              ${balance > 0 ? `<button class="btn btn-outline" style="border-color:#ef4444; color:#ef4444; padding:3px 7px;" title="Encaisser" onclick="clearMemberBalance('${m.id}', '${safeName}')"><i data-lucide="check-circle" style="width:14px; height:14px;"></i></button>` : ''}
               <button class="btn btn-outline" title="${m.role === 'admin' ? 'Rétrograder en membre simple' : 'Promouvoir Admin'}" onclick="toggleAdminRole('${m.id}', '${m.role}')">
                 <i data-lucide="${m.role === 'admin' ? 'shield-off' : 'shield'}" style="width: 14px; height: 14px;"></i>
               </button>
@@ -3370,8 +3370,22 @@ if (btnSubmitCredit) {
   });
 }
 
-async function clearMemberBalance(memberId) {
-  if (!confirm("Marquer TOUTE l'ardoise comme payée pour ce membre ?")) return;
+async function clearMemberBalance(memberId, memberName = '') {
+  let resolvedName = memberName;
+  if (!resolvedName && window.allMembersList) {
+    const found = window.allMembersList.find(m => String(m.id) === String(memberId));
+    if (found) resolvedName = found.full_name || found.email || '';
+  }
+  if (!resolvedName) {
+    try {
+      const { data: prof } = await supabaseClient.from('profiles').select('full_name, email').eq('id', memberId).maybeSingle();
+      if (prof) resolvedName = prof.full_name || prof.email || '';
+    } catch (e) {}
+  }
+  const confirmText = resolvedName
+    ? `Marquer TOUTE l'ardoise comme payée pour ${resolvedName} ?`
+    : "Marquer TOUTE l'ardoise comme payée pour ce membre ?";
+  if (!confirm(confirmText)) return;
 
   show('loading');
 
@@ -3496,7 +3510,7 @@ async function openMemberConsumptionDetails(memberId, memberName) {
       collectBtn.style.display = '';
       collectBtn.onclick = async () => {
         document.getElementById('consumption-detail-modal').classList.add('hidden');
-        await clearMemberBalance(memberId);
+        await clearMemberBalance(memberId, memberName);
         openMemberConsumptionDetails(memberId, memberName);
       };
     } else {
