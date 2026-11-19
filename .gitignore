@@ -1,22 +1,5 @@
-# Fichiers système Windows
-Thumbs.db
-desktop.ini
-*.lnk
-
-# Fichiers système Mac/Linux
-.DS_Store
-
-# Logs
-*.log
-
-# Fichiers temporaires
-*.tmp
-*.temp
-~$*
-
-# Dossiers d'éditeurs
-.vscode/
-.idea/
-
-# Node.js (si utilisé plus tard)
-node_modules/
+# Fichiers locaux uniquement (ne pas pousser sur GitHub)
+Lancer_en_local.bat
+server.ps1
+Tutoriel_Presentation_Membres.html
+scratch/
