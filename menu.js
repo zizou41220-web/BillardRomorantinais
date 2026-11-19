@@ -364,7 +364,7 @@
       html += `<div style="text-align:center; padding:2rem; color:var(--text-muted);">Aucun article trouvé.</div>`;
     } else {
       if (barItems.length > 0) {
-        html += `<div class="menu-section-label">🍹 Bar, Boissons & Casse-croûte (${barItems.length})</div>`;
+        html += `<div class="menu-section-label">🍹 Boissons & Snacks (${barItems.length})</div>`;
         html += `<div class="menu-items-grid">${barItems.map(renderCard).join('')}</div>`;
       }
       if (otherItems.length > 0) {
@@ -410,6 +410,7 @@
   /* ---------- Initialisation ---------- */
   document.addEventListener('DOMContentLoaded', async () => {
     if (isPublicMode()) {
+      document.body.classList.add('menu-public-mode');
       document.getElementById('login-view')?.classList.add('hidden');
       document.getElementById('app-shell')?.classList.add('hidden');
       document.getElementById('loading')?.classList.add('hidden');
