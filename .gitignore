@@ -3,3 +3,5 @@ Lancer_en_local.bat
 server.ps1
 Tutoriel_Presentation_Membres.html
 scratch/
+~WRD*.tmp
+~$*
