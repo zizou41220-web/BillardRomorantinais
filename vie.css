@@ -1,0 +1,359 @@
+/* ============================================================
+   LOT "VIE" — animations & effets visuels (non invasif)
+   Désactivable : retirer les 2 lignes vie.css / vie.js d'index.html
+   ============================================================ */
+
+/* 6. Changement d'onglet / de vue fluide */
+.view.active,
+.admin-pane.active {
+  animation: vieFadeUp 0.38s cubic-bezier(.2,.8,.2,1) both;
+}
+@keyframes vieFadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* 5. Apparition en cascade (classe posée par vie.js) */
+.vie-cascade {
+  opacity: 0;
+  animation: vieCascade 0.45s cubic-bezier(.2,.8,.2,1) forwards;
+  animation-delay: calc(var(--vie-i, 0) * 45ms);
+}
+@keyframes vieCascade {
+  from { opacity: 0; transform: translateY(16px) scale(.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* 7. Boutons vivants : survol + rebond + ripple */
+.btn, button.caisse-btn-primary, .caisse-btn-mini, .caisse-btn-credit,
+.caisse-member-free, .caisse-member-direct, .caisse-cat-tab {
+  position: relative;
+  overflow: hidden;
+  transition: transform .18s ease, box-shadow .18s ease, filter .18s ease;
+}
+.btn:hover, .caisse-btn-mini:hover, .caisse-btn-credit:hover,
+.caisse-member-free:hover, .caisse-member-direct:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 18px rgba(0,0,0,.28);
+}
+.btn:active, .caisse-btn-mini:active, .caisse-btn-credit:active,
+.caisse-member-free:active, .caisse-member-direct:active,
+.caisse-product-tile:active {
+  transform: scale(.95);
+}
+.vie-ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255,255,255,.45);
+  transform: scale(0);
+  pointer-events: none;
+  animation: vieRipple .6s ease-out forwards;
+}
+@keyframes vieRipple {
+  to { transform: scale(1); opacity: 0; }
+}
+
+/* Vignettes produits : survol */
+.caisse-product-tile, .drink-item {
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.caisse-product-tile:hover, .drink-item:hover {
+  transform: translateY(-3px);
+}
+
+/* 10. Badge de quantité qui "pop" */
+.vie-pop {
+  animation: viePop .38s cubic-bezier(.3,1.6,.5,1);
+}
+@keyframes viePop {
+  0%   { transform: scale(.4); }
+  60%  { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+.vie-tile-bump {
+  animation: vieBump .3s ease;
+}
+@keyframes vieBump {
+  0%,100% { transform: scale(1); }
+  45%     { transform: scale(1.06); }
+}
+
+/* 11. Lignes du ticket qui glissent */
+.vie-slide-in {
+  animation: vieSlideIn .35s cubic-bezier(.2,.8,.2,1) both;
+}
+@keyframes vieSlideIn {
+  from { opacity: 0; transform: translateX(26px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.vie-total-flash {
+  animation: vieTotalFlash .5s ease;
+}
+@keyframes vieTotalFlash {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.18); text-shadow: 0 0 14px rgba(255,255,255,.6); }
+  100% { transform: scale(1); }
+}
+
+/* 18. Notifications (toasts) */
+#vie-toasts {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+  max-width: min(360px, calc(100vw - 36px));
+}
+.vie-toast {
+  position: relative;
+  overflow: hidden;
+  background: rgba(10, 30, 24, .94);
+  color: #f8fafc;
+  border: 1px solid rgba(255,255,255,.14);
+  border-left: 5px solid #10b981;
+  border-radius: 12px;
+  padding: .85rem 1.1rem .95rem;
+  font-size: .95rem;
+  font-weight: 600;
+  box-shadow: 0 12px 30px rgba(0,0,0,.45);
+  backdrop-filter: blur(8px);
+  animation: vieToastIn .45s cubic-bezier(.2,1.1,.3,1) both;
+}
+.vie-toast.out { animation: vieToastOut .35s ease forwards; }
+.vie-toast .vie-toast-bar {
+  position: absolute;
+  left: 0; bottom: 0;
+  height: 3px;
+  width: 100%;
+  background: linear-gradient(90deg, #10b981, #e5b84b);
+  transform-origin: left;
+  animation: vieToastBar var(--vie-dur, 3.8s) linear forwards;
+}
+@keyframes vieToastIn  { from { opacity: 0; transform: translateX(120%); } to { opacity: 1; transform: translateX(0); } }
+@keyframes vieToastOut { to { opacity: 0; transform: translateX(120%); } }
+@keyframes vieToastBar { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
+/* 12. Célébration : coche + confettis */
+.vie-check {
+  position: fixed;
+  left: 50%; top: 50%;
+  width: 120px; height: 120px;
+  margin: -60px 0 0 -60px;
+  z-index: 99998;
+  pointer-events: none;
+  border-radius: 50%;
+  background: rgba(16,185,129,.95);
+  box-shadow: 0 0 0 0 rgba(16,185,129,.55);
+  display: flex; align-items: center; justify-content: center;
+  animation: vieCheck 1.1s cubic-bezier(.2,1.2,.3,1) forwards;
+}
+.vie-check svg { width: 64px; height: 64px; }
+.vie-check path {
+  stroke: #fff; stroke-width: 6; fill: none;
+  stroke-linecap: round; stroke-linejoin: round;
+  stroke-dasharray: 60; stroke-dashoffset: 60;
+  animation: vieCheckDraw .45s .25s ease forwards;
+}
+@keyframes vieCheck {
+  0%   { transform: scale(0); opacity: 0; }
+  35%  { transform: scale(1.1); opacity: 1; box-shadow: 0 0 0 30px rgba(16,185,129,0); }
+  75%  { transform: scale(1); opacity: 1; }
+  100% { transform: scale(.9); opacity: 0; }
+}
+@keyframes vieCheckDraw { to { stroke-dashoffset: 0; } }
+
+.vie-confetti {
+  position: fixed;
+  top: 0; left: 0;
+  width: 10px; height: 14px;
+  z-index: 99997;
+  pointer-events: none;
+  border-radius: 2px;
+  will-change: transform, opacity;
+}
+
+/* Pulsation douce du stock faible */
+.caisse-product-stock.low-stock {
+  animation: viePulse 1.6s ease-in-out infinite;
+}
+@keyframes viePulse {
+  0%,100% { opacity: 1; }
+  50%     { opacity: .45; }
+}
+
+/* Respect du réglage "réduire les animations" */
+@media (prefers-reduced-motion: reduce) {
+  .view.active, .admin-pane.active, .vie-cascade, .vie-pop, .vie-slide-in,
+  .vie-total-flash, .vie-tile-bump, .vie-toast, .vie-check,
+  .caisse-product-stock.low-stock {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+}
+
+/* ============================================================
+   LOT "AMBIANCE BILLARD" — mêmes couleurs que le club
+   3. Boule qui roule  |  4. Connexion animée  |  7. Liseré doré
+   ============================================================ */
+
+/* 3. Chargement : une boule de billard roule sur sa piste */
+.loading-overlay .loader {
+  position: relative;
+  width: 220px;
+  height: 64px;
+  border: none;
+  border-radius: 0;
+  animation: none;
+  background: none;
+}
+.loading-overlay .loader::before {          /* la piste */
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: 4px;
+  height: 4px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, transparent, var(--accent-gold), transparent);
+  opacity: .55;
+}
+.loading-overlay .loader::after {           /* la boule */
+  content: '8';
+  position: absolute;
+  left: 0; bottom: 8px;
+  width: 46px; height: 46px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font: 800 18px/1 'Outfit', sans-serif;
+  color: #0a2540;
+  background:
+    radial-gradient(circle at 50% 50%, #fff 0 28%, transparent 29%),
+    radial-gradient(circle at 32% 28%, rgba(255,255,255,.55) 0 12%, transparent 13%),
+    var(--accent-gold);
+  box-shadow: 0 6px 12px rgba(0,0,0,.45), inset -4px -6px 10px rgba(0,0,0,.28);
+  animation: vieBallRoll 1.5s ease-in-out infinite alternate;
+}
+@keyframes vieBallRoll {
+  from { transform: translateX(0) rotate(0deg); }
+  to   { transform: translateX(174px) rotate(560deg); }
+}
+
+/* 4. Écran de connexion animé */
+#login-view .auth-card,
+#lock-screen-view .auth-card {
+  animation: vieAuthCard .8s cubic-bezier(.2,.9,.25,1) both;
+}
+@keyframes vieAuthCard {
+  from { opacity: 0; transform: translateY(34px) scale(.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+#login-view .logo-circle.large,
+#lock-screen-view .logo-circle.large {
+  animation: vieLogoIn .9s .15s cubic-bezier(.3,1.5,.5,1) both,
+             vieHalo 3.2s 1.1s ease-in-out infinite;
+}
+@keyframes vieLogoIn {
+  from { opacity: 0; transform: scale(.3) rotate(-120deg); }
+  to   { opacity: 1; transform: scale(1) rotate(0); }
+}
+@keyframes vieHalo {
+  0%,100% { box-shadow: 0 0 0 0 rgba(229,179,65,.0), 0 0 18px rgba(229,179,65,.35); }
+  50%     { box-shadow: 0 0 0 10px rgba(229,179,65,.0), 0 0 38px rgba(229,179,65,.75); }
+}
+#login-view .auth-card h2,
+#login-view .auth-card .card-subtitle,
+#login-view .input-group,
+#login-view #auth-submit-btn,
+#login-view .auth-footer {
+  opacity: 0;
+  animation: vieFormIn .55s cubic-bezier(.2,.9,.25,1) forwards;
+}
+#login-view .auth-card h2            { animation-delay: .45s; }
+#login-view .auth-card .card-subtitle{ animation-delay: .55s; }
+#login-view .input-group:nth-of-type(1) { animation-delay: .65s; }
+#login-view .input-group:nth-of-type(2) { animation-delay: .75s; }
+#login-view .input-group:nth-of-type(3) { animation-delay: .85s; }
+#login-view #auth-submit-btn         { animation-delay: .95s; }
+#login-view .auth-footer             { animation-delay: 1.05s; }
+@keyframes vieFormIn {
+  from { opacity: 0; transform: translateX(-24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* 7. Liseré doré qui tourne (or déjà présent dans l'appli) */
+@property --vie-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+.quick-stats .stat-item,
+.caisse-member-card.active,
+.caisse-product-tile.in-cart {
+  position: relative;
+}
+.quick-stats .stat-item::after,
+.caisse-member-card.active::after,
+.caisse-product-tile.in-cart::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 2px;
+  background: conic-gradient(from var(--vie-angle),
+              transparent 0 55%, var(--accent-gold) 80%, #fff3c4 88%, transparent 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  pointer-events: none;
+  animation: vieAngle 4s linear infinite;
+}
+@keyframes vieAngle { to { --vie-angle: 360deg; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-overlay .loader::after,
+  #login-view .auth-card, #lock-screen-view .auth-card,
+  #login-view .logo-circle.large, #lock-screen-view .logo-circle.large,
+  #login-view .auth-card h2, #login-view .auth-card .card-subtitle,
+  #login-view .input-group, #login-view #auth-submit-btn, #login-view .auth-footer,
+  .quick-stats .stat-item::after, .caisse-member-card.active::after,
+  .caisse-product-tile.in-cart::after {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+}
+
+/* ===== Bille de billard discrète en fond de la Caisse Bar ===== */
+#adm-caisse {
+  position: relative;
+  overflow: hidden;
+}
+#adm-caisse > .caisse-container {
+  position: relative;
+  z-index: 1;
+}
+#vie-caisse-ball {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0.2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 800 24px/1 'Outfit', sans-serif;
+  color: #0a2540;
+  background:
+    radial-gradient(circle at 50% 50%, #ffffff 0 28%, transparent 29%),
+    radial-gradient(circle at 32% 28%, rgba(255,255,255,0.6) 0 12%, transparent 13%),
+    var(--accent-gold);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35), inset -5px -7px 14px rgba(0, 0, 0, 0.25);
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  #vie-caisse-ball { display: none !important; }
+}

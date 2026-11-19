@@ -1,9 +1,15 @@
-const CACHE_NAME = 'bcr-cache-v41';
+const CACHE_NAME = 'bcr-cache-v42';
 const urlsToCache = [
   './',
   './index.html',
   './style.css',
   './app.js',
+  './vie.css',
+  './vie.js',
+  './stats.css',
+  './stats.js',
+  './menu.css',
+  './menu.js',
   './Logo.jpg'
 ];
 

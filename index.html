@@ -11,18 +11,40 @@
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#050816">
   <script>
+    // Journalisation en console sans popup intrusif
+    window.onerror = function (msg, url, line, col, error) {
+      console.error("Erreur JS :", msg, url, line);
+      return false;
+    };
+
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').then(reg => {
-          reg.update();
-          console.log('ServiceWorker enregistré:', reg.scope);
-        }).catch(err => {
-          console.log('Erreur ServiceWorker:', err);
+      // En local : désactiver le ServiceWorker pour éviter qu'il serve un vieux app.js en cache
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:') {
+        navigator.serviceWorker.getRegistrations().then(registrations => {
+          for (let reg of registrations) reg.unregister();
         });
-      });
+        if ('caches' in window) {
+          caches.keys().then(names => {
+            for (let name of names) caches.delete(name);
+          });
+        }
+      } else {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js').then(reg => {
+            reg.update();
+            console.log('ServiceWorker enregistré:', reg.scope);
+          }).catch(err => {
+            console.log('Erreur ServiceWorker:', err);
+          });
+        });
+      }
     }
   </script>
-  <link rel="stylesheet" href="style.css?v=2.4.5">
+  <link rel="stylesheet" href="style.css?v=2.5.5">
+  <link rel="stylesheet" href="vie.css?v=1.3">
+  <link rel="stylesheet" href="stats.css?v=1.1">
+  <link rel="stylesheet" href="menu.css?v=1.1">
+
   <link rel="stylesheet" href="tournament_hero.css">
   <style>
     /* Force modal-overlay display flex when active, completely bypassing external CSS cache */
@@ -81,6 +103,9 @@
     <div class="loader"></div>
   </div>
 
+  <!-- Vue Publique Menu Smartphone (QR Code Tournoi sans connexion) -->
+  <div id="public-menu-view" class="hidden"></div>
+
   <!-- Écran de Connexion -->
   <div id="login-view" class="auth-view">
     <div class="auth-card card">
@@ -91,7 +116,7 @@
       <p class="card-subtitle" style="margin-top: 0; margin-bottom: 2rem;">Connectez-vous pour accéder à vos
         services</p>
 
-      <form id="login-form">
+      <form id="login-form" onsubmit="event.preventDefault(); submitLoginForm(event); return false;">
         <div class="input-group id-pseudo-group hidden">
           <label>Pseudo (Nom d'utilisateur)</label>
           <input type="text" id="login-pseudo" placeholder="Ex: BillardMaster">
@@ -109,7 +134,7 @@
               de passe oublié ?</a>
           </div>
         </div>
-        <button type="submit" id="auth-submit-btn" class="btn btn-primary"
+        <button type="button" id="auth-submit-btn" class="btn btn-primary" onclick="submitLoginForm(event)"
           style="width: 100%; justify-content: center; margin-bottom: 1.5rem;">
           Se Connecter <i data-lucide="arrow-right"></i>
         </button>
@@ -210,7 +235,7 @@
           <i data-lucide="log-out" style="width: 14px; height: 14px;"></i> Se déconnecter
         </button>
         <div style="text-align: center; margin-top: 1rem; font-size: 0.75rem; color: rgba(255, 255, 255, 0.3);">
-          v2.8.7
+          v2.8.6
         </div>
       </div>
     </nav>
@@ -320,7 +345,8 @@
                   style="font-size: 0.8rem; text-transform: uppercase; color: #93c5fd; font-weight: 700; letter-spacing: 0.5px; display: block; margin-bottom: 3px;">
                   Mode Service au Bar (Admin)
                 </span>
-                <span style="font-size: 1.15rem; font-weight: 700; color: #ffffff; display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <span
+                  style="font-size: 1.15rem; font-weight: 700; color: #ffffff; display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                   Vous enregistrez pour :
                   <strong id="serving-member-name"
                     style="color: #fbbf24; background: rgba(251, 191, 36, 0.15); border: 1px solid rgba(251, 191, 36, 0.45); padding: 2px 10px; border-radius: 6px; font-weight: 800; font-size: 1.2rem; letter-spacing: 0.3px; text-shadow: 0 1px 2px rgba(0,0,0,0.8);">
@@ -355,7 +381,8 @@
 
             <!-- 3ème (Encore en dessous) : Ardoise en attente -->
             <div class="card history-card">
-              <h3 style="margin-bottom: 1.25rem;"><i data-lucide="receipt"></i> <span id="management-history-title">Ardoise en attente</span></h3>
+              <h3 style="margin-bottom: 1.25rem;"><i data-lucide="receipt"></i> <span
+                  id="management-history-title">Ardoise en attente</span></h3>
               <div class="table-wrapper">
                 <table>
                   <thead>
@@ -920,8 +947,7 @@
           <div class="module-header" style="flex-direction: column; align-items: flex-start; gap: 1.5rem;">
             <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
               <h2>Administration du Club</h2>
-              <button class="btn btn-main hidden" id="buvette-header-btn"
-                style="padding: 0.6rem 1rem; font-size: 0.95rem; background: #2563eb; color: #ffffff; border: 1px solid #3b82f6; box-shadow: 0 2px 6px rgba(37, 99, 235, 0.4);"
+              <button class="btn btn-main hidden" id="buvette-header-btn" style="display: none !important;"
                 onclick="openBuvetteModal()">
                 <i data-lucide="shopping-cart" style="width: 16px; height: 16px;"></i> Ouvrir le Mode Buvette
               </button>
@@ -929,10 +955,196 @@
             <div class="admin-tabs"
               style="display: flex; gap: 1rem; border-bottom: 1px solid var(--border); width: 100%; padding-bottom: 0.5rem; flex-wrap: wrap;">
               <button class="btn-tab active" data-tab="adm-members">Membres</button>
+              <button class="btn-tab" data-tab="adm-caisse">Caisse Bar</button>
               <button class="btn-tab" data-tab="adm-consumptions">Consommations</button>
-              <button class="btn-tab" data-tab="adm-drinks">Articles & Boissons</button>
-              <button class="btn-tab" data-tab="adm-stocks">Stock Boissons</button>
+              <button class="btn-tab" data-tab="adm-drinks">Articles & Stocks</button>
               <button class="btn-tab" data-tab="adm-stats">Statistiques</button>
+              <button class="btn-tab" data-tab="adm-menu">Menu QR Code</button>
+            </div>
+          </div>
+
+          <!-- Onglet Construction Menu Smartphone & QR Code (Admin) -->
+          <div id="adm-menu" class="admin-pane card">
+            <div id="menu-admin-builder-root"></div>
+          </div>
+
+          <!-- Onglet Caisse Bar & Buvette (Admin) -->
+          <div id="adm-caisse" class="admin-pane">
+            <div class="caisse-container">
+              <!-- Colonne 1 : Sélection Client / Membre -->
+              <div class="caisse-col caisse-col-members">
+                <div class="caisse-card-header">
+                  <h3><i data-lucide="users" style="width: 17px; height: 17px; opacity: 0.8;"></i> Sélection Client</h3>
+                </div>
+
+                <!-- Carte Gratuit / Offert (Retrait de stock sans paiement) -->
+                <div class="caisse-member-card caisse-member-free" id="caisse-free-client-btn"
+                  onclick="selectCaisseClient('FREE')">
+                  <div class="caisse-member-avatar free-avatar">
+                    <i data-lucide="package-minus" style="width: 18px; height: 18px;"></i>
+                  </div>
+                  <div class="caisse-member-details">
+                    <div class="caisse-member-name">Sortie de Stock / Offert</div>
+                    <div class="caisse-member-sub">Retrait de stock sans paiement</div>
+                  </div>
+                </div>
+
+                <!-- Bouton Liste Membres -->
+                <div class="caisse-member-card caisse-member-direct active" id="caisse-direct-client-btn"
+                  onclick="selectCaisseClient(null)">
+                  <div class="caisse-member-avatar direct-avatar">
+                    <i data-lucide="users" style="width: 18px; height: 18px;"></i>
+                  </div>
+                  <div class="caisse-member-details">
+                    <div class="caisse-member-name">Liste Membres</div>
+                    <div class="caisse-member-sub">Afficher les adhérents du club</div>
+                  </div>
+                </div>
+
+                <!-- Bouton Visiteur (Ardoises Tournoi / Passage) -->
+                <div class="caisse-member-card caisse-member-visitor" id="caisse-visitor-mode-btn"
+                  onclick="toggleCaisseVisitorMode()">
+                  <div class="caisse-member-avatar visitor-avatar">
+                    <i data-lucide="user-plus" style="width: 18px; height: 18px;"></i>
+                  </div>
+                  <div class="caisse-member-details">
+                    <div class="caisse-member-name">Visiteur (Ardoise)</div>
+                    <div class="caisse-member-sub" id="caisse-visitor-btn-sub">Afficher / créer une ardoise visiteur
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Barre de création & nettoyage Visiteur (visible en mode Visiteur) -->
+                <div id="caisse-visitor-create-box" class="caisse-visitor-panel hidden">
+                  <div class="caisse-visitor-create">
+                    <input type="text" id="caisse-visitor-new-name"
+                      placeholder="Nom et Prénom du visiteur (obligatoire)..." oninput="filterCaisseVisitors()"
+                      onkeydown="if(event.key==='Enter'){ event.preventDefault(); createOrSelectCaisseVisitor(); }">
+                    <button type="button" class="caisse-btn-action-sm caisse-btn-visitor-add"
+                      onclick="createOrSelectCaisseVisitor()" title="Créer ou sélectionner ce visiteur">
+                      <i data-lucide="plus" style="width: 14px; height: 14px;"></i> Ajouter
+                    </button>
+                  </div>
+                  <button type="button" class="caisse-btn-action-sm caisse-btn-visitor-purge"
+                    onclick="clearAllPaidVisitors()" title="Supprimer tous les visiteurs dont l'ardoise est à 0,00 €">
+                    <i data-lucide="trash-2" style="width: 13px; height: 13px;"></i> Supprimer les visiteurs sans
+                    ardoise
+                  </button>
+                </div>
+
+                <!-- Recherche Membre (masquée en mode Visiteur) -->
+                <div class="caisse-search-box" id="caisse-member-search-box">
+                  <i data-lucide="search" style="width: 15px; height: 15px; color: var(--text-muted);"></i>
+                  <input type="text" id="caisse-member-search" placeholder="Rechercher un adhérent..."
+                    oninput="filterCaisseMembers()">
+                </div>
+
+                <!-- Liste défilante des membres -->
+                <div class="caisse-members-list" id="caisse-members-list">
+                  <!-- Rempli dynamiquement en JS -->
+                </div>
+              </div>
+
+              <!-- Colonne 2 : Pavé Tactile Produits -->
+              <div class="caisse-col caisse-col-products">
+                <!-- Filtres catégories : UNIQUEMENT Bar / Snack et Matériel Billard -->
+                <div class="caisse-cat-tabs" id="caisse-cat-tabs">
+                  <button class="caisse-cat-tab active" onclick="filterCaisseCategory('bar')">
+                    <i data-lucide="coffee" style="width: 15px; height: 15px;"></i> Bar / Snack
+                  </button>
+                  <button class="caisse-cat-tab" onclick="filterCaisseCategory('billard')">
+                    <i data-lucide="circle-dot" style="width: 15px; height: 15px;"></i> Matériel Billard
+                  </button>
+                </div>
+
+                <!-- Grille des tuiles de produits -->
+                <div class="caisse-products-grid" id="caisse-products-grid">
+                  <!-- Rempli dynamiquement en JS -->
+                </div>
+              </div>
+
+              <!-- Colonne 3 : Ticket de Commande & Encaissement -->
+              <div class="caisse-col caisse-col-ticket">
+                <div class="caisse-ticket-header">
+                  <div>
+                    <h3 style="margin:0; font-size:1.05rem; display:flex; align-items:center; gap:0.45rem;">
+                      <i data-lucide="receipt" style="width: 17px; height: 17px; opacity: 0.8;"></i> Ticket en cours
+                    </h3>
+                    <div id="caisse-ticket-client-name"
+                      style="font-size:0.85rem; color:var(--text-muted); margin-top:4px;">
+                      Client : <strong style="color:var(--text-main);">Vente Directe</strong>
+                    </div>
+                  </div>
+                  <button class="caisse-btn-action-sm" onclick="resetCaisseCart()" title="Vider le panier">
+                    <i data-lucide="rotate-ccw" style="width: 13px; height: 13px;"></i> Réinitialiser
+                  </button>
+                </div>
+
+                <!-- Solde du membre sélectionné -->
+                <div id="caisse-member-solde-box" class="caisse-solde-box hidden">
+                  <div
+                    style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+                    <div>
+                      <span
+                        style="font-size:0.75rem; text-transform:uppercase; letter-spacing:0.04em; color:var(--text-muted);">Solde
+                        du compte</span>
+                      <div id="caisse-current-solde" style="font-weight:700; font-size:1.05rem; margin-top:1px;">0,00 €
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Encadré Retrait de stock sans paiement (Gratuit) avec Commentaire obligatoire -->
+                <div id="caisse-free-box" class="caisse-solde-box caisse-free-notice hidden">
+                  <div class="caisse-free-notice-title">
+                    <i data-lucide="package-minus" style="width: 14px; height: 14px;"></i> Retrait de stock sans
+                    paiement (0,00 €)
+                  </div>
+                  <input type="text" id="caisse-free-comment" class="caisse-free-input"
+                    placeholder="Motif obligatoire (ex : Tournoi, Réunion, Bénévoles...)">
+                </div>
+
+                <!-- Lignes du ticket -->
+                <div class="caisse-ticket-items" id="caisse-ticket-items">
+                  <div class="caisse-empty-ticket">
+                    <i data-lucide="shopping-bag" style="width:32px; height:32px; opacity:0.25; margin-bottom:8px;"></i>
+                    <div>Aucun article sélectionné</div>
+                    <div style="font-size:0.78rem; color:var(--text-muted); margin-top:3px;">Sélectionnez un article
+                      dans la liste</div>
+                  </div>
+                </div>
+
+                <!-- Résumé Total & Nouveau Solde -->
+                <div class="caisse-ticket-footer">
+                  <div class="caisse-total-row">
+                    <span style="font-size:0.95rem; font-weight:500; color:var(--text-muted);">Total TTC</span>
+                    <span id="caisse-total-amount"
+                      style="font-size:1.4rem; font-weight:700; color:var(--text-main);">0,00 €</span>
+                  </div>
+                  <div id="caisse-projected-solde-row" class="caisse-projected-solde hidden">
+                    <span style="color:var(--text-muted);">Solde après opération :</span>
+                    <span id="caisse-projected-solde" style="font-weight:600;">--</span>
+                  </div>
+
+                  <!-- Boutons d'encaissement express -->
+                  <div class="caisse-actions">
+                    <button id="caisse-btn-ardoise" class="caisse-btn-primary" onclick="submitCaisseOrder('auto')">
+                      <i data-lucide="check" style="width: 16px; height: 16px;"></i> Enregistrer sur le compte
+                    </button>
+                    <div id="caisse-secondary-pay-btns" class="caisse-secondary-grid">
+                      <button class="caisse-btn-secondary" onclick="submitCaisseOrder('cash')">
+                        <i data-lucide="banknote" style="width: 15px; height: 15px;"></i> Espèces
+                      </button>
+                      <button class="caisse-btn-secondary" onclick="submitCaisseOrder('card')">
+                        <i data-lucide="credit-card" style="width: 15px; height: 15px;"></i>  Carte bleue
+                      </button>
+                      <button class="caisse-btn-secondary" onclick="submitCaisseOrder('transfer')">
+                        <i data-lucide="landmark" style="width: 15px; height: 15px;"></i> Virement
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -989,7 +1201,7 @@
                     <th>Membre</th>
                     <th>Email</th>
                     <th>Solde / Ardoise</th>
-                    <th style="text-align: right;">Actions Bar & Crédit</th>
+                    <th style="text-align: right;">Historique & Détails</th>
                   </tr>
                 </thead>
                 <tbody id="admin-consumption-list">
@@ -999,50 +1211,34 @@
             </div>
           </div>
 
-          <!-- Drinks Section -->
+          <!-- Drinks & Stocks Unified Section -->
           <div id="adm-drinks" class="admin-pane card">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-              <h3><i data-lucide="coffee"></i> Gestion de la Carte</h3>
-              <button class="btn-main" id="add-drink-btn"
-                style="display: flex; align-items: center; gap: 0.5rem; padding: 6px 12px; border-radius: 8px; border: none;"><i
-                  data-lucide="plus" style="width:16px;"></i> Ajouter</button>
+            <div
+              style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+              <h3><i data-lucide="package"></i> Gestion des Articles, Boissons & Stocks</h3>
+              <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+                <button class="btn-alt" id="export-stock-csv-btn"
+                  style="display: flex; align-items: center; gap: 0.5rem; padding: 7px 14px; border-radius: 8px; border: 1px solid var(--border); width: auto;">
+                  <i data-lucide="download" style="width:16px; height:16px;"></i> Exporter CSV
+                </button>
+                <button class="btn-main" id="add-drink-btn"
+                  style="display: flex; align-items: center; gap: 0.5rem; padding: 7px 14px; border-radius: 8px; border: none; width: auto;">
+                  <i data-lucide="plus" style="width:16px; height:16px;"></i> Ajouter un article
+                </button>
+              </div>
             </div>
             <div class="table-wrapper">
               <table>
                 <thead>
                   <tr>
-                    <th>Icône</th>
-                    <th>Nom</th>
+                    <th>Visuel</th>
+                    <th>Article</th>
                     <th>Prix</th>
-                    <th>Actions</th>
+                    <th>Stock Actuel</th>
+                    <th style="text-align: right;">Actions</th>
                   </tr>
                 </thead>
                 <tbody id="admin-drink-list">
-                  <!-- Injecté par JS -->
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- Stocks Section -->
-          <div id="adm-stocks" class="admin-pane card">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-              <h3><i data-lucide="package"></i> Gestion des Stocks</h3>
-              <button class="btn-alt" id="export-stock-csv-btn"
-                style="display: flex; align-items: center; gap: 0.5rem; padding: 6px 12px; border-radius: 8px; border: none;">
-                <i data-lucide="download" style="width:16px;"></i> Exporter CSV
-              </button>
-            </div>
-            <div class="table-wrapper">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Boisson</th>
-                    <th>Stock Actuel</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody id="admin-stock-list">
                   <!-- Injecté par JS -->
                 </tbody>
               </table>
@@ -1070,26 +1266,14 @@
                 <div
                   style="background: rgba(239, 68, 68, 0.1); padding: 8px 15px; border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.2);">
                   <span style="font-size: 0.8rem; color: var(--text-muted); display: block;">Dont Ardoises</span>
-                  <span id="stat-total-unpaid"
-                    style="font-size: 1.2rem; font-weight: bold; color: #ef4444;">0,00 €</span>
+                  <span id="stat-total-unpaid" style="font-size: 1.2rem; font-weight: bold; color: #ef4444;">0,00
+                    €</span>
                 </div>
               </div>
             </div>
 
             <div class="chart-container" style="position: relative; height: 40vh; width: 100%;">
               <canvas id="salesChart"></canvas>
-            </div>
-
-            <div
-              style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; margin-top: 2rem;">
-              <h3><i data-lucide="bar-chart-2"></i> Consommation Mensuelle par Article</h3>
-            </div>
-
-            <div style="display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: flex-start;">
-              <div class="chart-container"
-                style="position: relative; height: 40vh; width: 100%; min-width: 300px; display: flex; justify-content: center;">
-                <canvas id="itemsMonthlyChart"></canvas>
-              </div>
             </div>
           </div>
         </section>
@@ -1190,14 +1374,21 @@
             </div>
             <div class="input-group">
               <label>Catégorie</label>
-              <select id="drink-category" style="width: 100%; padding: 0.8rem 1rem; border-radius: 10px; border: 1px solid var(--border); background: #0f172a; color: var(--text-main); font-weight: 500;">
+              <select id="drink-category"
+                style="width: 100%; padding: 0.8rem 1rem; border-radius: 10px; border: 1px solid var(--border); background: #0f172a; color: var(--text-main); font-weight: 500;">
                 <option value="bar">🥤 Boissons & En-cas (Bar / Friandises)</option>
                 <option value="billard">🎱 Matériel & Consommables Billard</option>
               </select>
             </div>
-            <div class="input-group">
-              <label>Seuil d'alerte (Quantité)</label>
-              <input type="number" id="drink-alert-threshold" value="0" min="0">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+              <div class="input-group" style="margin-bottom: 0;">
+                <label>Stock Actuel</label>
+                <input type="number" id="drink-stock" value="0">
+              </div>
+              <div class="input-group" style="margin-bottom: 0;">
+                <label>Seuil d'alerte</label>
+                <input type="number" id="drink-alert-threshold" value="0" min="0">
+              </div>
             </div>
             <div class="input-group">
               <label>Nom de l'icône Lucide (ex: coffee, beer, wine)</label>
@@ -1372,10 +1563,10 @@
             <div
               style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; border-bottom: 1px solid var(--border); padding-bottom: 0.8rem;">
               <h3 style="margin: 0; display:flex; align-items:center; gap:0.5rem; font-size:1.15rem; color:white;">
-                <i data-lucide="edit-3" style="color:var(--accent-gold); width:20px; height:20px;"></i> Corriger une consommation
+                <i data-lucide="edit-3" style="color:var(--accent-gold); width:20px; height:20px;"></i> Corriger une
+                consommation
               </h3>
-              <button type="button" class="btn-close-modal"
-                onclick="closeEditConsumptionModal()"
+              <button type="button" class="btn-close-modal" onclick="closeEditConsumptionModal()"
                 style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.5rem; line-height: 1;">✕</button>
             </div>
 
@@ -1384,7 +1575,8 @@
               <input type="hidden" id="edit-cons-member-id">
 
               <!-- Info membre & Date originale -->
-              <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+              <div
+                style="background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
                 <div>
                   <span style="font-size: 0.75rem; color: var(--text-muted); display: block;">Membre</span>
                   <strong id="edit-cons-member-name" style="color: white; font-size: 0.95rem;">-</strong>
@@ -1397,8 +1589,12 @@
 
               <!-- Article / Boisson -->
               <div class="form-group" style="margin-bottom: 1rem;">
-                <label for="edit-cons-drink-select" style="display:block; margin-bottom:0.4rem; font-weight:600; font-size:0.85rem;">Article / Boisson :</label>
-                <select id="edit-cons-drink-select" class="form-control" style="width: 100%; padding: 0.6rem; border-radius: 6px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); color: white;" required>
+                <label for="edit-cons-drink-select"
+                  style="display:block; margin-bottom:0.4rem; font-weight:600; font-size:0.85rem;">Article / Boisson
+                  :</label>
+                <select id="edit-cons-drink-select" class="form-control"
+                  style="width: 100%; padding: 0.6rem; border-radius: 6px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); color: white;"
+                  required>
                   <!-- Peuplé par JS -->
                 </select>
               </div>
@@ -1406,42 +1602,59 @@
               <!-- Quantité et Prix unitaire -->
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
                 <div class="form-group">
-                  <label for="edit-cons-qty" style="display:block; margin-bottom:0.4rem; font-weight:600; font-size:0.85rem;">Quantité :</label>
-                  <input type="number" id="edit-cons-qty" min="1" max="100" class="form-control" style="width: 100%; padding: 0.6rem; border-radius: 6px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); color: white;" required>
+                  <label for="edit-cons-qty"
+                    style="display:block; margin-bottom:0.4rem; font-weight:600; font-size:0.85rem;">Quantité :</label>
+                  <input type="number" id="edit-cons-qty" min="1" max="100" class="form-control"
+                    style="width: 100%; padding: 0.6rem; border-radius: 6px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); color: white;"
+                    required>
                 </div>
                 <div class="form-group">
-                  <label for="edit-cons-price" style="display:block; margin-bottom:0.4rem; font-weight:600; font-size:0.85rem;">Prix unitaire (€) :</label>
-                  <input type="number" id="edit-cons-price" step="0.10" min="0" class="form-control" style="width: 100%; padding: 0.6rem; border-radius: 6px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); color: white;" required>
+                  <label for="edit-cons-price"
+                    style="display:block; margin-bottom:0.4rem; font-weight:600; font-size:0.85rem;">Prix unitaire (€)
+                    :</label>
+                  <input type="number" id="edit-cons-price" step="0.10" min="0" class="form-control"
+                    style="width: 100%; padding: 0.6rem; border-radius: 6px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); color: white;"
+                    required>
                 </div>
               </div>
 
               <!-- Montant total calculé -->
-              <div style="background: rgba(37, 99, 235, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px; padding: 0.6rem 1rem; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center;">
+              <div
+                style="background: rgba(37, 99, 235, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px; padding: 0.6rem 1rem; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center;">
                 <span style="font-size: 0.9rem; color: #93c5fd;">Nouveau montant dû :</span>
                 <strong id="edit-cons-total" style="font-size: 1.15rem; color: #60a5fa;">0.00 €</strong>
               </div>
 
               <!-- Statut & Audit historique -->
-              <div id="edit-cons-audit-info" style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 1rem; line-height: 1.4;">
+              <div id="edit-cons-audit-info"
+                style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 1rem; line-height: 1.4;">
               </div>
 
               <!-- MOTIF OBLIGATOIRE -->
               <div class="form-group" style="margin-bottom: 1.5rem;">
-                <label for="edit-cons-reason" style="display:flex; justify-content:space-between; margin-bottom:0.4rem; font-weight:600; font-size:0.85rem;">
+                <label for="edit-cons-reason"
+                  style="display:flex; justify-content:space-between; margin-bottom:0.4rem; font-weight:600; font-size:0.85rem;">
                   <span>Motif de la rectification <span style="color:#ef4444;">*</span></span>
                   <span style="font-size:0.75rem; color:#ef4444; font-weight:normal;">(Champ obligatoire)</span>
                 </label>
-                <textarea id="edit-cons-reason" rows="3" required placeholder="Ex : Erreur de saisie par le membre (a pris un Café au lieu d'un Soda), rectification quantité..." style="width: 100%; padding: 0.6rem; border-radius: 6px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); color: white; resize: vertical;"></textarea>
+                <textarea id="edit-cons-reason" rows="3" required
+                  placeholder="Ex : Erreur de saisie par le membre (a pris un Café au lieu d'un Soda), rectification quantité..."
+                  style="width: 100%; padding: 0.6rem; border-radius: 6px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); color: white; resize: vertical;"></textarea>
               </div>
 
               <!-- Boutons d'action -->
-              <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
-                <button type="button" class="btn btn-outline" id="btn-delete-cons" style="border-color: #ef4444; color: #ef4444; padding: 8px 12px; font-size: 0.85rem;" onclick="deleteCurrentConsumption()">
+              <div
+                style="display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+                <button type="button" class="btn btn-outline" id="btn-delete-cons"
+                  style="border-color: #ef4444; color: #ef4444; padding: 8px 12px; font-size: 0.85rem;"
+                  onclick="deleteCurrentConsumption()">
                   <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i> Supprimer la déclaration
                 </button>
                 <div style="display: flex; gap: 0.5rem;">
-                  <button type="button" class="btn-alt" onclick="closeEditConsumptionModal()" style="padding: 8px 14px;">Annuler</button>
-                  <button type="submit" class="btn-main" style="padding: 8px 16px; background: #2563eb; border: none; font-weight: 600; display:flex; align-items:center; gap:6px;">
+                  <button type="button" class="btn-alt" onclick="closeEditConsumptionModal()"
+                    style="padding: 8px 14px;">Annuler</button>
+                  <button type="submit" class="btn-main"
+                    style="padding: 8px 16px; background: #2563eb; border: none; font-weight: 600; display:flex; align-items:center; gap:6px;">
                     <i data-lucide="check" style="width: 16px; height: 16px;"></i> Enregistrer
                   </button>
                 </div>
@@ -1780,7 +1993,10 @@
     src="https://connect.facebook.net/fr_FR/sdk.js#xfbml=1&version=v17.0"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <script src="tournaments.js?v=2.4.8" defer></script>
-  <script src="app.js?v=2.9.20" defer></script>
+  <script src="app.js?v=2.9.43" defer></script>
+  <script src="vie.js?v=1.4" defer></script>
+  <script src="stats.js?v=1.4" defer></script>
+  <script src="menu.js?v=1.4" defer></script>
   <script>
     // Initialisation des icônes Lucide
     lucide.createIcons();

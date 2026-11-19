@@ -1,6 +1,24 @@
 // Portail Unifié - Billard & Équitation
-console.log("Portail Unifié : Démarrage du script v2.8.7...");
+console.log("Portail Unifié : Démarrage du script v2.9.21...");
+const APP_SUPABASE_URL = "https://cuszxcwhyfgtvbbylrdx.supabase.co";
+const APP_SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1c3p4Y3doeWZndHZiYnlscmR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzMDg2ODEsImV4cCI6MjEwNDg4NDY4MX0.JJdMg7_h_6szxPzZszcp7l0HOHazgVRX4z-LHsZHfxw";
+
 let supabaseClient = null;
+if (typeof supabase !== 'undefined') {
+  try {
+    supabaseClient = supabase.createClient(APP_SUPABASE_URL, APP_SUPABASE_KEY, {
+      auth: {
+        storage: window.sessionStorage,
+        persistSession: true
+      }
+    });
+    window.supabaseClient = supabaseClient;
+    console.log("Client Supabase initialisé immédiatement.");
+  } catch (err) {
+    console.error("Erreur init Supabase immédiate :", err);
+  }
+}
+
 let currentUser = null;
 let drinks = [];
 let settings = {};
@@ -23,37 +41,156 @@ function getItemCategory(drink) {
     if (cat === 'billard' || cat === 'billiard' || cat === 'materiel') return 'billard';
     return 'bar';
   }
-  const name = (drink.name || '').toLowerCase();
+  const cleanStr = ((drink.name || '') + ' ' + (drink.icon || ''))
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
   const billiardKeywords = [
-    'procédé', 'procede', 'craie', 'crai', 'taom',
-    'virole', 'embout', 'queue', 'flèche', 'fleche',
+    'procede', 'craie', 'crai', 'taom',
+    'virole', 'embout', 'queue', 'fleche',
     'chiffon', 'gant', 'kamui', 'triangle', 'bille'
   ];
-  if (billiardKeywords.some(kw => name.includes(kw))) {
+  if (billiardKeywords.some(kw => cleanStr.includes(kw))) {
     return 'billard';
   }
   return 'bar';
 }
 window.getItemCategory = getItemCategory;
 
+// --- FONCTION DE SOUMISSION DE CONNEXION GLOBALE ---
+async function submitLoginForm(e) {
+  if (e) {
+    if (e.preventDefault) e.preventDefault();
+    if (e.stopPropagation) e.stopPropagation();
+  }
+  const emailInput = document.getElementById('login-email');
+  const passwordInput = document.getElementById('login-password');
+  const pseudoInput = document.getElementById('login-pseudo');
+
+  const email = (emailInput?.value || '').trim().toLowerCase();
+  const password = passwordInput?.value || '';
+  const pseudo = pseudoInput ? pseudoInput.value.trim() : "";
+
+  if (!email || !password) {
+    alert("Veuillez renseigner votre email et votre mot de passe.");
+    return false;
+  }
+
+  toggleLoading(true);
+
+  if (!supabaseClient && typeof supabase !== 'undefined') {
+    supabaseClient = supabase.createClient(APP_SUPABASE_URL, APP_SUPABASE_KEY, {
+      auth: { storage: window.sessionStorage, persistSession: true }
+    });
+    window.supabaseClient = supabaseClient;
+  }
+
+  if (isLogin) {
+    try {
+      console.log("Tentative de connexion pour :", email);
+      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      if (error) {
+        toggleLoading(false);
+        console.error("Erreur de connexion :", error);
+        alert("Erreur de connexion : " + error.message);
+        return false;
+      }
+      console.log("Connexion réussie pour :", data?.user?.email);
+      if (data?.user) {
+        handleSignIn(data.user);
+      }
+      toggleLoading(false);
+      return false;
+    } catch (err) {
+      toggleLoading(false);
+      console.error("Exception connexion :", err);
+      alert("Erreur imprévue : " + err.message);
+      return false;
+    }
+  } else {
+    if (!pseudo) {
+      toggleLoading(false);
+      alert("Veuillez saisir un pseudo.");
+      return false;
+    }
+
+    try {
+      const { count: profileCount } = await supabaseClient.from('profiles').select('*', { count: 'exact', head: true });
+      const isFirstUser = profileCount === 0;
+      let importedMember = null;
+
+      if (!isFirstUser) {
+        const { data: importData, error: importCheckError } = await supabaseClient
+          .from('imported_members')
+          .select('*')
+          .eq('email', email)
+          .maybeSingle();
+        importedMember = importData;
+
+        if (importCheckError) {
+          toggleLoading(false);
+          alert("Erreur lors de la vérification de votre éligibilité : " + importCheckError.message);
+          return false;
+        }
+
+        if (!importedMember) {
+          toggleLoading(false);
+          alert("Création de compte refusée : Votre e-mail n'est pas en attente d'inscription dans la liste des membres. Veuillez demander à un administrateur de vous ajouter au préalable.");
+          return false;
+        }
+      }
+
+      const { data, error } = await supabaseClient.auth.signUp({
+        email,
+        password,
+        options: { data: { full_name: pseudo } }
+      });
+
+      if (error) {
+        alert("Erreur d'inscription : " + error.message);
+      } else {
+        if (data?.user) {
+          try {
+            const userRole = isFirstUser ? 'admin' : (importedMember && importedMember.role === 'admin' ? 'admin' : 'member');
+            const userStock = importedMember && importedMember.can_manage_stock === true;
+            let profileData = {
+              id: data.user.id,
+              email: email,
+              full_name: pseudo,
+              role: userRole,
+              can_manage_stock: userStock
+            };
+            if (importedMember && importedMember.avatar_url) {
+              profileData.avatar_url = importedMember.avatar_url;
+            }
+            await supabaseClient.from('profiles').upsert(profileData);
+          } catch (_) {}
+        }
+        alert("Inscription réussie ! Vous pouvez maintenant vous connecter.");
+      }
+    } catch (regErr) {
+      alert("Erreur lors de l'inscription : " + regErr.message);
+    }
+    toggleLoading(false);
+    return false;
+  }
+}
+window.submitLoginForm = submitLoginForm;
+
 document.addEventListener('DOMContentLoaded', async () => {
   console.log("DOM chargé, initialisation...");
   try {
-    if (typeof supabase === 'undefined') {
+    if (!supabaseClient && typeof supabase !== 'undefined') {
+      supabaseClient = supabase.createClient(APP_SUPABASE_URL, APP_SUPABASE_KEY, {
+        auth: {
+          storage: window.sessionStorage,
+          persistSession: true
+        }
+      });
+      window.supabaseClient = supabaseClient;
+    }
+    if (!supabaseClient) {
       throw new Error("Le SDK Supabase n'est pas chargé. Vérifiez votre connexion internet.");
     }
-
-    const SUPABASE_URL = "https://cuszxcwhyfgtvbbylrdx.supabase.co";
-    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1c3p4Y3doeWZndHZiYnlscmR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzMDg2ODEsImV4cCI6MjEwNDg4NDY4MX0.JJdMg7_h_6szxPzZszcp7l0HOHazgVRX4z-LHsZHfxw";
-
-    supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-      auth: {
-        storage: window.sessionStorage,
-        persistSession: true
-      }
-    });
-    window.supabaseClient = supabaseClient;
-    console.log("Client Supabase initialisé.");
 
     // --- STATISTIQUES ---
     let salesChartInstance = null;
@@ -295,6 +432,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
           }
         });
+        setTimeout(() => {
+          if (salesChartInstance) {
+            salesChartInstance.resize();
+            salesChartInstance.update('none');
+          }
+        }, 450);
 
       } catch (err) {
         console.error("Erreur lors du chargement des statistiques :", err);
@@ -434,6 +577,10 @@ let isRecoverySession = false;
 
 // --- AUTHENTIFICATION ---
 async function initAuth() {
+  if (window.location.search.includes('menu=1') || window.location.hash === '#menu') {
+    console.log("Mode Menu Smartphone public détecté : bypass initAuth.");
+    return;
+  }
   console.log("Initialisation Auth...");
   const { data: { session } } = await supabaseClient.auth.getSession();
 
@@ -465,8 +612,10 @@ async function initAuth() {
       }
       return;
     }
-    if (event === 'SIGNED_IN' && session && !currentUser) {
-      handleSignIn(session.user);
+    if (event === 'SIGNED_IN' && session) {
+      if (!currentUser || currentUser.id !== session.user.id) {
+        handleSignIn(session.user);
+      }
     }
     if (event === 'SIGNED_OUT') {
       handleSignOut();
@@ -503,90 +652,10 @@ async function initAuth() {
     });
   }
 
-  document.getElementById('login-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const email = document.getElementById('login-email').value;
-    const password = document.getElementById('login-password').value;
-    const pseudoInput = document.getElementById('login-pseudo');
-    const pseudo = pseudoInput ? pseudoInput.value.trim() : "";
-
-    toggleLoading(true);
-    if (isLogin) {
-      const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-      if (error) alert("Erreur : " + error.message);
-    } else {
-      if (!pseudo) {
-        toggleLoading(false);
-        return alert("Veuillez saisir un pseudo.");
-      }
-
-      // Vérification que le membre est bien "en attente d'inscription"
-      const { count: profileCount } = await supabaseClient.from('profiles').select('*', { count: 'exact', head: true });
-      const isFirstUser = profileCount === 0;
-      let importedMember = null;
-
-      if (!isFirstUser) {
-        const { data: importData, error: importCheckError } = await supabaseClient
-          .from('imported_members')
-          .select('*')
-          .eq('email', email.trim().toLowerCase())
-          .maybeSingle();
-        importedMember = importData;
-
-        if (importCheckError) {
-          toggleLoading(false);
-          return alert("Erreur lors de la vérification de votre éligibilité : " + importCheckError.message);
-        }
-
-        if (!importedMember) {
-          toggleLoading(false);
-          return alert("Création de compte refusée : Votre e-mail n'est pas en attente d'inscription dans la liste des membres. Veuillez demander à un administrateur de vous ajouter au préalable.");
-        }
-      }
-
-      const { data, error } = await supabaseClient.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: pseudo
-          }
-        }
-      });
-      if (error) {
-        alert("Erreur d'inscription : " + error.message);
-      } else {
-        if (data?.user) {
-          try {
-            const userRole = isFirstUser ? 'admin' : (importedMember && importedMember.role === 'admin' ? 'admin' : 'member');
-            const userStock = importedMember && importedMember.can_manage_stock === true;
-
-            let profileData = {
-              id: data.user.id,
-              email: email,
-              full_name: pseudo,
-              role: userRole,
-              can_manage_stock: userStock
-            };
-            if (importedMember && importedMember.avatar_url) {
-              profileData.avatar_url = importedMember.avatar_url;
-            }
-
-            const { error: upsertErr } = await supabaseClient
-              .from('profiles')
-              .upsert(profileData);
-            if (upsertErr) {
-              console.warn("Profil en attente d'auto-création à la première connexion :", upsertErr.message);
-            }
-          } catch (err) {
-            console.warn("Échec de l'upsert direct du profil :", err);
-          }
-        }
-        alert("Inscription réussie ! Vous pouvez maintenant vous connecter.");
-      }
-    }
-    toggleLoading(false);
-  });
+  const loginFormEl = document.getElementById('login-form');
+  if (loginFormEl) {
+    loginFormEl.addEventListener('submit', submitLoginForm);
+  }
 
   // Gestion du Lock Screen
   const lockForm = document.getElementById('lock-form');
@@ -651,8 +720,9 @@ function handleSignOut() {
 function applyRoleAccessControl() {
   let role = currentUser?.profile?.role || 'member';
 
-  // SÉCURITÉ ABSOLUE : Forcer le rôle admin pour le créateur
-  if (currentUser?.email === 'sebastien.tessier41@orange.fr') {
+  // SÉCURITÉ ABSOLUE : Forcer le rôle admin pour le créateur et son compte de test
+  const cEmail = (currentUser?.email || '').toLowerCase().trim();
+  if (cEmail === 'sebastien.tessier41@orange.fr' || cEmail === 'zizou41220@gmail.com') {
     role = 'admin';
   }
   if (role) {
@@ -1137,6 +1207,15 @@ function applyRoleAccessControl() {
       alert('Consommations enregistrées avec succès !');
       loadAppData();
       if (typeof loadAdminData === 'function') loadAdminData();
+      if (typeof loadCaisseMembers === 'function') {
+        loadCaisseMembers().then(() => {
+          if (caisseSelectedMember && activeCreditMember && caisseSelectedMember.id === activeCreditMember.id) {
+            caisseSelectedMember = caisseMembersList.find(m => m.id === caisseSelectedMember.id) || null;
+          }
+          if (typeof renderCaisseMembers === 'function') renderCaisseMembers(document.getElementById('caisse-member-search')?.value || '');
+          if (typeof updateCaisseTicketUI === 'function') updateCaisseTicketUI();
+        });
+      }
 
     } catch (err) {
       toggleLoading(false);
@@ -1468,12 +1547,34 @@ function initNavigation() {
       const paneId = tab.getAttribute('data-tab');
       if (!paneId) return; // Ignorer si ce n'est pas un onglet principal (ex: onglets dans les modales)
 
+      if (typeof caisseCart !== 'undefined' && caisseCart.size > 0 && paneId !== 'adm-caisse') {
+        alert(
+          "⚠️ Transaction en cours dans la Caisse Bar !\n\n" +
+          "Vous ne pouvez pas changer d'onglet tant qu'un ticket est en cours.\n" +
+          "Veuillez d'abord valider la commande ou cliquer sur « Réinitialiser »."
+        );
+        return;
+      }
+
       document.querySelectorAll('.btn-tab').forEach(t => {
         if (t.hasAttribute('data-tab')) t.classList.remove('active');
       });
-      document.querySelectorAll('.admin-pane').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.admin-pane').forEach(p => {
+        p.classList.remove('active');
+        p.style.display = 'none';
+      });
       tab.classList.add('active');
-      document.getElementById(paneId).classList.add('active');
+      const targetPane = document.getElementById(paneId);
+      if (targetPane) {
+        targetPane.classList.add('active');
+        targetPane.style.display = 'block';
+      }
+
+      if (paneId === 'adm-caisse') {
+        if (typeof renderCaisseBarUI === 'function') {
+          renderCaisseBarUI();
+        }
+      }
 
       if (paneId === 'adm-stats') {
         if (typeof renderSalesChart === 'function') {
@@ -1590,8 +1691,22 @@ function initNavigation() {
 }
 
 function switchSection(name) {
+  const adminViewActive = document.getElementById('section-admin')?.classList.contains('active');
+  const caissePaneActive = document.getElementById('adm-caisse')?.classList.contains('active');
+  if (typeof caisseCart !== 'undefined' && caisseCart.size > 0 && adminViewActive && caissePaneActive && name !== 'admin') {
+    alert(
+      "⚠️ Transaction en cours dans la Caisse Bar !\n\n" +
+      "Vous ne pouvez pas changer de page tant qu'un ticket est en cours.\n" +
+      "Veuillez d'abord valider la commande ou cliquer sur « Réinitialiser »."
+    );
+    return;
+  }
+
   const role = currentUser?.profile?.role || 'member';
-  if (role !== 'admin' && name !== 'management' && name !== 'home') {
+  const canManageStock = currentUser?.profile?.can_manage_stock === true;
+  const isStaff = (role === 'admin' || canManageStock);
+
+  if (!isStaff && (name === 'admin' || name === 'caisse')) {
     name = 'home';
   }
 
@@ -1611,12 +1726,1207 @@ function switchSection(name) {
   if (mobileItem) mobileItem.classList.add('active');
 
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  document.getElementById(`section-${name}`).classList.add('active');
+  const targetView = document.getElementById(`section-${name}`);
+  if (targetView) targetView.classList.add('active');
 
   if (name === 'management') renderManagementUI();
   if (name === 'admin') loadAdminData();
   if (name === 'tournaments') initTournamentsModule();
+  if (name === 'caisse') renderCaisseBarUI();
 }
+
+// --- MODULE CAISSE BAR & BUVETTE ---
+let caisseCart = new Map(); // drinkId -> { drink, qty }
+let caisseSelectedMember = null; // null = Vente Directe (ou Gratuit si caisseIsFreeMode === true)
+let caisseIsFreeMode = false; // true = Retrait de stock sans paiement (Gratuit / Offert)
+let caisseIsVisitorMode = false; // true = Mode Visiteurs (liste des visiteurs à la place des membres)
+let caisseSelectedVisitor = null; // Visiteur sélectionné { id, full_name, balance }
+let caisseVisitorsList = [];
+let caisseActiveCategory = 'bar'; // Seules catégories : 'bar' ou 'billard'
+let caisseMembersList = [];
+
+async function renderCaisseBarUI() {
+  caisseCart.clear();
+  caisseSelectedMember = null;
+  caisseIsFreeMode = false;
+  caisseIsVisitorMode = false;
+  caisseSelectedVisitor = null;
+  caisseActiveCategory = 'bar';
+  const freeBtn = document.getElementById('caisse-free-client-btn');
+  const directBtn = document.getElementById('caisse-direct-client-btn');
+  const visitorBtn = document.getElementById('caisse-visitor-mode-btn');
+  const visitorCreateBox = document.getElementById('caisse-visitor-create-box');
+  const memberSearchBox = document.getElementById('caisse-member-search-box');
+  const visitorBtnSub = document.getElementById('caisse-visitor-btn-sub');
+  if (freeBtn) freeBtn.classList.remove('active');
+  if (directBtn) directBtn.classList.add('active');
+  if (visitorBtn) visitorBtn.classList.remove('active');
+  if (visitorCreateBox) visitorCreateBox.classList.add('hidden');
+  if (memberSearchBox) memberSearchBox.classList.remove('hidden');
+  if (visitorBtnSub) visitorBtnSub.textContent = 'Afficher / créer une ardoise visiteur';
+  const freeCommentInput = document.getElementById('caisse-free-comment');
+  if (freeCommentInput) freeCommentInput.value = '';
+  
+  // 1. S'assurer que les boissons sont disponibles en mémoire
+  if ((!drinks || drinks.length === 0) && supabaseClient) {
+    try {
+      const { data: drks } = await supabaseClient.from('drinks').select('*');
+      if (drks) drinks = drks;
+    } catch (e) {
+      console.warn("Erreur chargement boissons caisse:", e);
+    }
+  }
+  window.drinks = drinks;
+
+  // 2. Rendu immédiat des produits et du ticket
+  renderCaisseProducts();
+  updateCaisseTicketUI();
+
+  // 3. Rendu immédiat des membres depuis le cache si disponible
+  if (window.allMembersList && window.allMembersList.length > 0) {
+    caisseMembersList = window.allMembersList.map(m => {
+      const unpaid = (m.consumptions || []).filter(c => !c.is_paid);
+      const balance = unpaid.reduce((sum, c) => sum + ((c.price_at_time || 0) * (c.quantity || 1)), 0);
+      return {
+        ...m,
+        credit: parseFloat(m.credit_balance) || 0,
+        balance: balance
+      };
+    });
+    renderCaisseMembers();
+  }
+
+  // 4. Chargement / rafraîchissement complet depuis Supabase
+  await loadCaisseMembers();
+  renderCaisseMembers();
+  renderCaisseProducts();
+  updateCaisseTicketUI();
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+async function loadCaisseMembers() {
+  try {
+    const { data: members, error } = await supabaseClient
+      .from('profiles')
+      .select('id, full_name, email, role, credit_balance, avatar_url, can_manage_stock')
+      .order('full_name', { ascending: true });
+    if (error) throw error;
+
+    const { data: unpaid } = await supabaseClient
+      .from('consumptions')
+      .select('member_id, price_at_time, quantity')
+      .eq('is_paid', false);
+
+    const balanceMap = {};
+    if (unpaid) {
+      unpaid.forEach(c => {
+        const amt = (c.price_at_time || 0) * (c.quantity || 1);
+        balanceMap[c.member_id] = (balanceMap[c.member_id] || 0) + amt;
+      });
+    }
+
+    caisseMembersList = (members || []).map(m => ({
+      ...m,
+      credit: parseFloat(m.credit_balance) || 0,
+      balance: balanceMap[m.id] || 0
+    }));
+  } catch (err) {
+    console.warn("Erreur chargement membres caisse :", err);
+    if ((!caisseMembersList || caisseMembersList.length === 0) && window.allMembersList && window.allMembersList.length > 0) {
+      caisseMembersList = window.allMembersList.map(m => ({
+        ...m,
+        credit: parseFloat(m.credit_balance) || 0,
+        balance: 0
+      }));
+    }
+  }
+}
+
+function renderCaisseMembers(filterText = '') {
+  const container = document.getElementById('caisse-members-list');
+  if (!container) return;
+
+  const search = (filterText || '').toLowerCase().trim();
+  const filtered = (caisseMembersList || []).filter(m => {
+    const name = (m.full_name || '').toLowerCase();
+    const email = (m.email || '').toLowerCase();
+    return name.includes(search) || email.includes(search);
+  });
+
+  if (filtered.length === 0) {
+    container.innerHTML = `<div style="text-align:center; padding:1.5rem; color:var(--text-muted); font-size:0.85rem;">Aucun membre trouvé</div>`;
+    return;
+  }
+
+  container.innerHTML = filtered.map(m => {
+    const isSelected = caisseSelectedMember && caisseSelectedMember.id === m.id;
+    const initial = (m.full_name || m.email || '?')[0].toUpperCase();
+    
+    let soldeHtml = '';
+    if (m.credit > 0) {
+      soldeHtml = `<span class="caisse-member-solde-tag caisse-solde-positive">+${m.credit.toFixed(2).replace('.', ',')} €</span>`;
+    } else if (m.balance > 0) {
+      soldeHtml = `<span class="caisse-member-solde-tag caisse-solde-negative">-${m.balance.toFixed(2).replace('.', ',')} €</span>`;
+    } else {
+      soldeHtml = `<span class="caisse-member-solde-tag caisse-solde-neutral">0,00 €</span>`;
+    }
+
+    const avatarHtml = m.avatar_url 
+      ? `<img src="${m.avatar_url}" alt="${m.full_name}">`
+      : `<span>${initial}</span>`;
+
+    return `
+      <div class="caisse-member-card ${isSelected ? 'active' : ''}" onclick="selectCaisseClient('${m.id}')">
+        <div class="caisse-member-avatar">
+          ${avatarHtml}
+        </div>
+        <div class="caisse-member-details">
+          <div class="caisse-member-name">${m.full_name || m.email}</div>
+          <div class="caisse-member-sub">${m.role === 'admin' ? 'Administrateur' : 'Adhérent'}</div>
+        </div>
+        <div>
+          ${soldeHtml}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function filterCaisseMembers() {
+  const input = document.getElementById('caisse-member-search');
+  renderCaisseMembers(input ? input.value : '');
+}
+
+function selectCaisseClient(memberId) {
+  const isSameFree = (memberId === 'FREE' && caisseIsFreeMode && !caisseIsVisitorMode);
+  const isSameDirect = (!memberId && !caisseIsFreeMode && !caisseSelectedMember && !caisseIsVisitorMode && !caisseSelectedVisitor);
+  const isSameMember = (memberId && memberId !== 'FREE' && !caisseIsVisitorMode && caisseSelectedMember && String(caisseSelectedMember.id) === String(memberId));
+
+  if (isSameFree || isSameDirect || isSameMember) {
+    return;
+  }
+
+  if (caisseCart.size > 0) {
+    alert(
+      "⚠️ Attention : une commande est déjà en cours sur le ticket !\n\n" +
+      "La commande en cours va être annulée si vous changez de personne.\n" +
+      "Veuillez obligatoirement cliquer sur le bouton « Réinitialiser » (en haut du ticket) avant de pouvoir servir quelqu'un d'autre."
+    );
+    return;
+  }
+
+  const directBtn = document.getElementById('caisse-direct-client-btn');
+  const freeBtn = document.getElementById('caisse-free-client-btn');
+  const visitorBtn = document.getElementById('caisse-visitor-mode-btn');
+  const visitorCreateBox = document.getElementById('caisse-visitor-create-box');
+  const memberSearchBox = document.getElementById('caisse-member-search-box');
+  const visitorBtnSub = document.getElementById('caisse-visitor-btn-sub');
+
+  // Quitter le mode Visiteur si on clique sur Vente Directe, Offert ou un membre
+  caisseIsVisitorMode = false;
+  caisseSelectedVisitor = null;
+  if (visitorBtn) visitorBtn.classList.remove('active');
+  if (visitorCreateBox) visitorCreateBox.classList.add('hidden');
+  if (memberSearchBox) memberSearchBox.classList.remove('hidden');
+  if (visitorBtnSub) visitorBtnSub.textContent = 'Afficher / créer une ardoise visiteur';
+
+  if (memberId === 'FREE') {
+    caisseIsFreeMode = true;
+    caisseSelectedMember = null;
+    if (freeBtn) freeBtn.classList.add('active');
+    if (directBtn) directBtn.classList.remove('active');
+  } else if (!memberId) {
+    caisseIsFreeMode = false;
+    caisseSelectedMember = null;
+    if (directBtn) directBtn.classList.add('active');
+    if (freeBtn) freeBtn.classList.remove('active');
+  } else {
+    caisseIsFreeMode = false;
+    if (directBtn) directBtn.classList.remove('active');
+    if (freeBtn) freeBtn.classList.remove('active');
+    caisseSelectedMember = (caisseMembersList || []).find(m => m.id === memberId) || null;
+  }
+
+  document.querySelectorAll('.caisse-member-card:not(.caisse-member-direct):not(.caisse-member-free):not(.caisse-member-visitor)').forEach(card => {
+    card.classList.remove('active');
+  });
+  renderCaisseMembers(document.getElementById('caisse-member-search')?.value || '');
+
+  updateCaisseTicketUI();
+}
+
+async function loadCaisseVisitors() {
+  try {
+    let visitors = null;
+    let error = null;
+    const res = await supabaseClient
+      .from('visitors')
+      .select('id, full_name, is_hidden, created_at')
+      .or('is_hidden.eq.false,is_hidden.is.null')
+      .order('created_at', { ascending: false });
+    if (res.error) {
+      const fallback = await supabaseClient
+        .from('visitors')
+        .select('id, full_name, created_at')
+        .order('created_at', { ascending: false });
+      visitors = fallback.data;
+      error = fallback.error;
+    } else {
+      visitors = res.data;
+    }
+    if (error) throw error;
+
+    const { data: unpaid } = await supabaseClient
+      .from('consumptions')
+      .select('visitor_id, price_at_time, quantity')
+      .eq('is_paid', false)
+      .not('visitor_id', 'is', null);
+
+    const balanceMap = {};
+    if (unpaid) {
+      unpaid.forEach(c => {
+        if (!c.visitor_id) return;
+        const amt = (c.price_at_time || 0) * (c.quantity || 1);
+        balanceMap[c.visitor_id] = (balanceMap[c.visitor_id] || 0) + amt;
+      });
+    }
+
+    caisseVisitorsList = (visitors || []).map(v => ({
+      ...v,
+      balance: balanceMap[v.id] || 0
+    }));
+
+    // Trier : ceux qui ont une ardoise en cours d'abord, puis par ordre alphabétique
+    caisseVisitorsList.sort((a, b) => {
+      if ((b.balance > 0) !== (a.balance > 0)) return b.balance > 0 ? 1 : -1;
+      return (a.full_name || '').localeCompare(b.full_name || '', 'fr');
+    });
+  } catch (err) {
+    console.warn("Erreur chargement visiteurs :", err);
+    caisseVisitorsList = [];
+  }
+}
+
+function renderCaisseVisitors(filterText = '') {
+  const container = document.getElementById('caisse-members-list');
+  if (!container) return;
+
+  const search = (filterText || '').toLowerCase().trim();
+  const filtered = (caisseVisitorsList || []).filter(v =>
+    (v.full_name || '').toLowerCase().includes(search)
+  );
+
+  if (filtered.length === 0) {
+    container.innerHTML = `<div style="text-align:center; padding:1.5rem; color:var(--text-muted); font-size:0.85rem;">${
+      search ? 'Aucun visiteur trouvé — cliquez sur « + Ajouter » pour le créer.' : 'Aucun visiteur enregistré. Saisissez un nom ci-dessus puis cliquez sur « + Ajouter ».'
+    }</div>`;
+    return;
+  }
+
+  container.innerHTML = filtered.map(v => {
+    const isSelected = caisseSelectedVisitor && String(caisseSelectedVisitor.id) === String(v.id);
+    const initial = (v.full_name || '?')[0].toUpperCase();
+    const soldeHtml = v.balance > 0
+      ? `<span class="caisse-member-solde-tag caisse-solde-negative">-${v.balance.toFixed(2).replace('.', ',')} €</span>`
+      : `<span class="caisse-member-solde-tag caisse-solde-neutral">0,00 €</span>`;
+
+    const hasUnpaid = (v.balance || 0) > 0.001;
+    return `
+      <div class="caisse-member-card ${isSelected ? 'active' : ''}" onclick="selectCaisseVisitor('${v.id}')">
+        <div class="caisse-member-avatar"><span>${initial}</span></div>
+        <div class="caisse-member-details">
+          <div class="caisse-member-name">${v.full_name}</div>
+          <div class="caisse-member-sub">Visiteur</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:0.4rem;">
+          ${soldeHtml}
+          <button type="button" class="caisse-visitor-del-btn ${hasUnpaid ? 'disabled' : ''}"
+            onclick="event.stopPropagation(); deleteCaisseVisitor('${v.id}')"
+            title="${hasUnpaid ? 'Suppression impossible : ardoise non payée' : 'Supprimer ce visiteur'}">
+            <i data-lucide="trash-2" style="width:13px; height:13px;"></i>
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+async function deleteCaisseVisitor(visitorId) {
+  const v = (caisseVisitorsList || []).find(item => String(item.id) === String(visitorId));
+  if (!v) return;
+
+  if ((v.balance || 0) > 0.001) {
+    alert(`⚠️ Suppression impossible : ${v.full_name} a encore une ardoise impayée de ${v.balance.toFixed(2).replace('.', ',')} €.\n\nVeuillez d'abord solder son ardoise avant de pouvoir le supprimer.`);
+    return;
+  }
+
+  if (caisseCart.size > 0 && caisseSelectedVisitor && String(caisseSelectedVisitor.id) === String(v.id)) {
+    alert("⚠️ Impossible de supprimer ce visiteur tant qu'un ticket est en cours pour lui. Cliquez sur « Réinitialiser » d'abord.");
+    return;
+  }
+
+  if (!confirm(`Supprimer le visiteur "${v.full_name}" de la liste ?\n\n(Ses consommations déjà payées restent conservées dans les statistiques du club.)`)) {
+    return;
+  }
+
+  try {
+    // Vérification serveur qu'il n'a aucune consommation impayée
+    const { data: unpaidRows, error: checkErr } = await supabaseClient
+      .from('consumptions')
+      .select('id')
+      .eq('visitor_id', v.id)
+      .or('is_paid.eq.false,is_paid.is.null')
+      .limit(1);
+    if (checkErr) throw checkErr;
+    if (unpaidRows && unpaidRows.length > 0) {
+      alert(`⚠️ Suppression refusée : ${v.full_name} a encore une consommation impayée en base.`);
+      await loadCaisseVisitors();
+      renderCaisseVisitors(document.getElementById('caisse-visitor-new-name')?.value || '');
+      return;
+    }
+
+    const { error } = await supabaseClient
+      .from('visitors')
+      .update({ is_hidden: true })
+      .eq('id', v.id);
+    if (error) throw error;
+
+    if (caisseSelectedVisitor && String(caisseSelectedVisitor.id) === String(v.id)) {
+      caisseSelectedVisitor = null;
+    }
+    await loadCaisseVisitors();
+    renderCaisseVisitors(document.getElementById('caisse-visitor-new-name')?.value || '');
+    updateCaisseTicketUI();
+    alert(`✅ Visiteur "${v.full_name}" supprimé de la liste.`);
+  } catch (err) {
+    alert("Erreur lors de la suppression : " + err.message);
+  }
+}
+
+async function clearAllPaidVisitors() {
+  await loadCaisseVisitors();
+  const paidVisitors = (caisseVisitorsList || []).filter(v => (v.balance || 0) <= 0.001);
+  const unpaidCount = (caisseVisitorsList || []).length - paidVisitors.length;
+
+  if (paidVisitors.length === 0) {
+    alert("ℹ️ Aucun visiteur soldé à supprimer.\n\nLes visiteurs qui ont encore une ardoise impayée ne peuvent pas être supprimés.");
+    return;
+  }
+
+  if (caisseCart.size > 0 && caisseSelectedVisitor && paidVisitors.some(v => String(v.id) === String(caisseSelectedVisitor.id))) {
+    alert("⚠️ Un ticket est en cours pour un visiteur soldé. Cliquez sur « Réinitialiser » avant de nettoyer la liste.");
+    return;
+  }
+
+  const msg = unpaidCount > 0
+    ? `Supprimer les ${paidVisitors.length} visiteur(s) dont l'ardoise est payée (0,00 €) ?\n\n(${unpaidCount} visiteur(s) avec une ardoise impayée seront conservés.)`
+    : `Supprimer tous les visiteurs soldés (${paidVisitors.length}) de la liste ?\n\n(Leurs consommations déjà payées restent conservées dans les statistiques.)`;
+
+  if (!confirm(msg)) return;
+
+  try {
+    const ids = paidVisitors.map(v => v.id);
+    const { error } = await supabaseClient
+      .from('visitors')
+      .update({ is_hidden: true })
+      .in('id', ids);
+    if (error) throw error;
+
+    if (caisseSelectedVisitor && ids.some(id => String(id) === String(caisseSelectedVisitor.id))) {
+      caisseSelectedVisitor = null;
+    }
+    await loadCaisseVisitors();
+    renderCaisseVisitors(document.getElementById('caisse-visitor-new-name')?.value || '');
+    updateCaisseTicketUI();
+    alert(`✅ ${paidVisitors.length} visiteur(s) soldé(s) supprimé(s) !`);
+  } catch (err) {
+    alert("Erreur lors du nettoyage des visiteurs : " + err.message);
+  }
+}
+
+function filterCaisseVisitors() {
+  const input = document.getElementById('caisse-visitor-new-name');
+  renderCaisseVisitors(input ? input.value : '');
+}
+
+async function toggleCaisseVisitorMode() {
+  if (caisseCart.size > 0) {
+    alert(
+      "⚠️ Attention : une commande est déjà en cours sur le ticket !\n\n" +
+      "Veuillez obligatoirement cliquer sur le bouton « Réinitialiser » (en haut du ticket) avant de changer de mode."
+    );
+    return;
+  }
+
+  const directBtn = document.getElementById('caisse-direct-client-btn');
+  const freeBtn = document.getElementById('caisse-free-client-btn');
+  const visitorBtn = document.getElementById('caisse-visitor-mode-btn');
+  const visitorCreateBox = document.getElementById('caisse-visitor-create-box');
+  const memberSearchBox = document.getElementById('caisse-member-search-box');
+  const visitorBtnSub = document.getElementById('caisse-visitor-btn-sub');
+
+  if (caisseIsVisitorMode) {
+    // Retour à la liste des adhérents
+    selectCaisseClient(null);
+    return;
+  }
+
+  caisseIsVisitorMode = true;
+  caisseIsFreeMode = false;
+  caisseSelectedMember = null;
+  caisseSelectedVisitor = null;
+
+  if (directBtn) directBtn.classList.remove('active');
+  if (freeBtn) freeBtn.classList.remove('active');
+  if (visitorBtn) visitorBtn.classList.add('active');
+  if (visitorCreateBox) visitorCreateBox.classList.remove('hidden');
+  if (memberSearchBox) memberSearchBox.classList.add('hidden');
+  if (visitorBtnSub) visitorBtnSub.textContent = 'Mode actif — cliquez ici pour revenir aux adhérents';
+
+  await loadCaisseVisitors();
+  const input = document.getElementById('caisse-visitor-new-name');
+  if (input) { input.value = ''; input.focus(); }
+  renderCaisseVisitors('');
+  updateCaisseTicketUI();
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function selectCaisseVisitor(visitorId) {
+  if (caisseSelectedVisitor && String(caisseSelectedVisitor.id) === String(visitorId)) {
+    return;
+  }
+  if (caisseCart.size > 0) {
+    alert(
+      "⚠️ Attention : une commande est déjà en cours sur le ticket !\n\n" +
+      "Veuillez obligatoirement cliquer sur le bouton « Réinitialiser » (en haut du ticket) avant de changer de visiteur."
+    );
+    return;
+  }
+  caisseSelectedVisitor = (caisseVisitorsList || []).find(v => String(v.id) === String(visitorId)) || null;
+  renderCaisseVisitors(document.getElementById('caisse-visitor-new-name')?.value || '');
+  updateCaisseTicketUI();
+}
+
+async function createOrSelectCaisseVisitor() {
+  const input = document.getElementById('caisse-visitor-new-name');
+  const rawName = input ? input.value.trim() : '';
+  if (!rawName) {
+    alert("⚠️ Veuillez obligatoirement saisir le nom et prénom du visiteur.");
+    if (input) input.focus();
+    return null;
+  }
+
+  if (caisseCart.size > 0 && caisseSelectedVisitor && caisseSelectedVisitor.full_name.toLowerCase() !== rawName.toLowerCase()) {
+    alert(
+      "⚠️ Attention : une commande est déjà en cours sur le ticket !\n\n" +
+      "Veuillez cliquer sur « Réinitialiser » avant de créer ou changer de visiteur."
+    );
+    return null;
+  }
+
+  // Si un visiteur avec ce nom exact existe déjà, on le sélectionne directement
+  const existing = (caisseVisitorsList || []).find(
+    v => (v.full_name || '').trim().toLowerCase() === rawName.toLowerCase()
+  );
+  if (existing) {
+    caisseSelectedVisitor = existing;
+    if (input) input.value = '';
+    renderCaisseVisitors('');
+    updateCaisseTicketUI();
+    return existing;
+  }
+
+  try {
+    // Si un visiteur masqué porte déjà exactement ce nom, on le réaffiche au lieu de créer un doublon
+    const { data: hiddenMatch } = await supabaseClient
+      .from('visitors')
+      .select('id, full_name, created_at')
+      .ilike('full_name', rawName)
+      .limit(1)
+      .maybeSingle();
+
+    let visitorRow = null;
+    if (hiddenMatch) {
+      const { data: unhidden, error: unhideErr } = await supabaseClient
+        .from('visitors')
+        .update({ is_hidden: false })
+        .eq('id', hiddenMatch.id)
+        .select()
+        .single();
+      if (unhideErr) throw unhideErr;
+      visitorRow = unhidden;
+    } else {
+      const { data, error } = await supabaseClient
+        .from('visitors')
+        .insert({ full_name: rawName, is_hidden: false })
+        .select()
+        .single();
+      if (error) throw error;
+      visitorRow = data;
+    }
+
+    const newVisitor = { ...visitorRow, balance: 0 };
+    caisseVisitorsList.unshift(newVisitor);
+    caisseSelectedVisitor = newVisitor;
+    if (input) input.value = '';
+    renderCaisseVisitors('');
+    updateCaisseTicketUI();
+    return newVisitor;
+  } catch (err) {
+    alert("Erreur lors de la création du visiteur : " + err.message + "\n\nVérifiez que le script setup_visitors.sql a bien été exécuté sur Supabase.");
+    return null;
+  }
+}
+
+function filterCaisseCategory(cat) {
+  caisseActiveCategory = (cat === 'billard') ? 'billard' : 'bar';
+  document.querySelectorAll('.caisse-cat-tab').forEach(t => t.classList.remove('active'));
+  const activeTab = Array.from(document.querySelectorAll('.caisse-cat-tab')).find(t => 
+    (caisseActiveCategory === 'bar' && t.textContent.includes('Bar')) ||
+    (caisseActiveCategory === 'billard' && t.textContent.includes('Billard'))
+  );
+  if (activeTab) activeTab.classList.add('active');
+  renderCaisseProducts();
+}
+
+function getCaisseProductIcon(drink) {
+  const cat = typeof getItemCategory === 'function' ? getItemCategory(drink) : 'bar';
+  const defaultIcon = cat === 'billard' ? 'circle-dot' : 'cup-soda';
+  const iconName = drink.icon || defaultIcon;
+  return `<i data-lucide="${iconName}" style="width: 22px; height: 22px;"></i>`;
+}
+
+function renderCaisseProducts() {
+  const container = document.getElementById('caisse-products-grid');
+  if (!container) return;
+
+  const currentDrinks = (typeof drinks !== 'undefined' && drinks && drinks.length > 0) ? drinks : (window.drinks || []);
+  const filtered = currentDrinks.filter(d => {
+    if (d.archived) return false;
+    const cat = typeof getItemCategory === 'function' ? getItemCategory(d) : 'bar';
+    return cat === caisseActiveCategory;
+  });
+
+  if (filtered.length === 0) {
+    container.innerHTML = `<div style="grid-column: 1 / -1; text-align:center; padding:2rem; color:var(--text-muted); font-size:0.9rem;">Aucun article dans la catégorie "${caisseActiveCategory === 'billard' ? 'Matériel Billard' : 'Bar / Snack'}"</div>`;
+    return;
+  }
+
+  container.innerHTML = filtered.map(d => {
+    const inCart = caisseCart.get(d.id);
+    const qty = inCart ? inCart.qty : 0;
+    const icon = getCaisseProductIcon(d);
+    const visualHtml = d.image_url
+      ? `<img src="${d.image_url}" alt="${d.name}" class="caisse-product-img">`
+      : `<div class="caisse-product-icon">${icon}</div>`;
+    const price = (d.price || 0).toFixed(2).replace('.', ',');
+
+    let stockText = '';
+    let stockClass = '';
+    let isStockAlert = false;
+    if (d.track_stock !== false && d.stock !== null && d.stock !== undefined) {
+      const projectedStock = d.stock - qty;
+      if (projectedStock < 0) {
+        stockText = `⚠️ Stock : ${projectedStock} (Inventaire)`;
+        stockClass = 'out-of-stock';
+        isStockAlert = true;
+      } else if (projectedStock === 0) {
+        stockText = 'Épuisé (0)';
+        stockClass = 'low-stock';
+      } else if (projectedStock <= 5) {
+        stockText = `Reste : ${projectedStock}`;
+        stockClass = 'low-stock';
+      } else {
+        stockText = `Stock : ${projectedStock}`;
+      }
+    }
+
+    return `
+      <div class="caisse-product-tile ${qty > 0 ? 'in-cart' : ''} ${isStockAlert ? 'stock-alert-tile' : ''}" onclick="addCaisseProduct(${d.id})">
+        ${qty > 0 ? `<div class="caisse-product-qty-badge ${isStockAlert ? 'stock-alert' : ''}">x${qty}</div>` : ''}
+        ${visualHtml}
+        <div class="caisse-product-name">${d.name}</div>
+        <div class="caisse-product-price">${price} €</div>
+        ${stockText ? `<div class="caisse-product-stock ${stockClass}">${stockText}</div>` : ''}
+      </div>
+    `;
+  }).join('');
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function addCaisseProduct(drinkId) {
+  if (!caisseIsFreeMode && !caisseSelectedMember && !caisseSelectedVisitor) {
+    if (caisseIsVisitorMode) {
+      alert("⚠️ Veuillez d'abord saisir ou sélectionner un visiteur dans la liste avant d'ajouter un article.");
+    } else {
+      alert("⚠️ Veuillez obligatoirement cliquer sur un membre dans la liste avant de pouvoir ajouter un article.");
+    }
+    return;
+  }
+
+  const currentDrinks = (typeof drinks !== 'undefined' && drinks && drinks.length > 0) ? drinks : (window.drinks || []);
+  const drink = currentDrinks.find(d => d.id === drinkId);
+  if (!drink) return;
+
+  if (caisseCart.has(drinkId)) {
+    caisseCart.get(drinkId).qty += 1;
+  } else {
+    caisseCart.set(drinkId, { drink, qty: 1 });
+  }
+
+  renderCaisseProducts();
+  updateCaisseTicketUI();
+}
+
+function changeCaisseQty(drinkId, delta) {
+  if (!caisseCart.has(drinkId)) return;
+  const item = caisseCart.get(drinkId);
+  item.qty += delta;
+  if (item.qty <= 0) {
+    caisseCart.delete(drinkId);
+  }
+  renderCaisseProducts();
+  updateCaisseTicketUI();
+}
+
+function resetCaisseCart(silent = false) {
+  if (!silent && caisseCart.size > 0) {
+    if (!confirm("⚠️ Attention : la commande en cours va être annulée et le ticket sera remis à zéro.\n\nConfirmez-vous la réinitialisation ?")) {
+      return;
+    }
+  }
+  caisseCart.clear();
+  const freeCommentInput = document.getElementById('caisse-free-comment');
+  if (freeCommentInput) freeCommentInput.value = '';
+  renderCaisseProducts();
+  updateCaisseTicketUI();
+}
+
+function updateCaisseTicketUI() {
+  const clientNameEl = document.getElementById('caisse-ticket-client-name');
+  const soldeBox = document.getElementById('caisse-member-solde-box');
+  const freeBox = document.getElementById('caisse-free-box');
+  const currentSoldeEl = document.getElementById('caisse-current-solde');
+  const itemsContainer = document.getElementById('caisse-ticket-items');
+  const totalEl = document.getElementById('caisse-total-amount');
+  const projectedRow = document.getElementById('caisse-projected-solde-row');
+  const projectedEl = document.getElementById('caisse-projected-solde');
+  const btnArdoise = document.getElementById('caisse-btn-ardoise');
+  const secondaryPayBtns = document.getElementById('caisse-secondary-pay-btns');
+
+  const creditBtn = document.getElementById('caisse-btn-credit-recharge');
+  if (creditBtn) creditBtn.style.display = caisseSelectedVisitor ? 'none' : 'inline-flex';
+
+  if (caisseIsFreeMode) {
+    if (clientNameEl) clientNameEl.innerHTML = `Mode : <strong style="color:#e2e8f0;">Sortie de Stock / Offert</strong>`;
+    if (soldeBox) soldeBox.classList.add('hidden');
+    if (freeBox) freeBox.classList.remove('hidden');
+    if (projectedRow) projectedRow.classList.add('hidden');
+    if (secondaryPayBtns) secondaryPayBtns.style.display = 'none';
+    if (btnArdoise) {
+      btnArdoise.innerHTML = `<i data-lucide="check" style="width:16px; height:16px;"></i> Valider la sortie de stock (0,00 €)`;
+    }
+  } else if (caisseIsVisitorMode) {
+    const v = caisseSelectedVisitor;
+    const btnEncaisserArdoise = document.getElementById('caisse-btn-encaisser-ardoise');
+    if (freeBox) freeBox.classList.add('hidden');
+    if (secondaryPayBtns) secondaryPayBtns.style.display = 'grid';
+    if (!v) {
+      if (clientNameEl) clientNameEl.innerHTML = `Visiteur : <strong style="color:#f59e0b;">Nom obligatoire à saisir</strong>`;
+      if (soldeBox) soldeBox.classList.add('hidden');
+      if (projectedRow) projectedRow.classList.add('hidden');
+    } else {
+      if (clientNameEl) clientNameEl.innerHTML = `Visiteur : <strong style="color:var(--accent-gold);">${v.full_name}</strong>`;
+      if (soldeBox) {
+        soldeBox.classList.remove('hidden');
+        if (v.balance > 0) {
+          currentSoldeEl.innerHTML = `<span style="color:#f87171;">-${v.balance.toFixed(2).replace('.', ',')} € (Ardoise)</span>`;
+        } else {
+          currentSoldeEl.innerHTML = `<span style="color:var(--text-muted);">0,00 €</span>`;
+        }
+        if (btnEncaisserArdoise) {
+          if (v.balance > 0) {
+            btnEncaisserArdoise.classList.remove('hidden');
+            btnEncaisserArdoise.style.display = 'inline-flex';
+          } else {
+            btnEncaisserArdoise.classList.add('hidden');
+            btnEncaisserArdoise.style.display = 'none';
+          }
+        }
+      }
+    }
+    if (btnArdoise) {
+      btnArdoise.innerHTML = `<i data-lucide="check" style="width:16px; height:16px;"></i> Enregistrer sur l'ardoise`;
+    }
+  } else if (!caisseSelectedMember) {
+    if (clientNameEl) clientNameEl.innerHTML = `Client : <strong style="color:#f59e0b;">Sélectionnez un membre</strong>`;
+    if (soldeBox) soldeBox.classList.add('hidden');
+    if (freeBox) freeBox.classList.add('hidden');
+    if (projectedRow) projectedRow.classList.add('hidden');
+    if (secondaryPayBtns) secondaryPayBtns.style.display = 'grid';
+    if (btnArdoise) {
+      btnArdoise.innerHTML = `<i data-lucide="check" style="width:16px; height:16px;"></i> Enregistrer sur le compte`;
+    }
+  } else {
+    const m = caisseSelectedMember;
+    const btnEncaisserArdoise = document.getElementById('caisse-btn-encaisser-ardoise');
+    if (clientNameEl) clientNameEl.innerHTML = `Client : <strong style="color:var(--text-main);">${m.full_name || m.email}</strong>`;
+    if (freeBox) freeBox.classList.add('hidden');
+    if (secondaryPayBtns) secondaryPayBtns.style.display = 'grid';
+    if (soldeBox) {
+      soldeBox.classList.remove('hidden');
+      if (m.credit > 0) {
+        currentSoldeEl.innerHTML = `<span style="color:#34d399;">+${m.credit.toFixed(2).replace('.', ',')} € (Crédit)</span>`;
+      } else if (m.balance > 0) {
+        currentSoldeEl.innerHTML = `<span style="color:#f87171;">-${m.balance.toFixed(2).replace('.', ',')} € (Ardoise)</span>`;
+      } else {
+        currentSoldeEl.innerHTML = `<span style="color:var(--text-muted);">0,00 €</span>`;
+      }
+      if (btnEncaisserArdoise) {
+        if (m.balance > 0) {
+          btnEncaisserArdoise.classList.remove('hidden');
+          btnEncaisserArdoise.style.display = 'inline-flex';
+        } else {
+          btnEncaisserArdoise.classList.add('hidden');
+          btnEncaisserArdoise.style.display = 'none';
+        }
+      }
+    }
+    if (btnArdoise) {
+      btnArdoise.innerHTML = `<i data-lucide="check" style="width:16px; height:16px;"></i> Enregistrer sur le compte`;
+    }
+  }
+
+  let total = 0;
+  if (caisseCart.size === 0) {
+    if (itemsContainer) {
+      itemsContainer.innerHTML = `
+        <div class="caisse-empty-ticket">
+          <i data-lucide="shopping-bag" style="width:32px; height:32px; opacity:0.25; margin-bottom:8px;"></i>
+          <div>Aucun article sélectionné</div>
+          <div style="font-size:0.78rem; color:var(--text-muted); margin-top:3px;">Sélectionnez un article dans la liste</div>
+        </div>
+      `;
+    }
+    if (btnArdoise) btnArdoise.disabled = true;
+  } else {
+    if (btnArdoise) btnArdoise.disabled = false;
+    let rowsHtml = '';
+    caisseCart.forEach((item, id) => {
+      const unitPrice = caisseIsFreeMode ? 0 : (item.drink.price || 0);
+      const lineTotal = unitPrice * item.qty;
+      total += lineTotal;
+      const subText = caisseIsFreeMode
+        ? `<span style="color:#94a3b8;">Offert (0,00 €)</span>`
+        : `${(item.drink.price || 0).toFixed(2).replace('.', ',')} € / u`;
+      rowsHtml += `
+        <div class="caisse-ticket-row">
+          <div>
+            <div class="caisse-ticket-row-title">${item.drink.name}</div>
+            <div class="caisse-ticket-row-sub">${subText}</div>
+          </div>
+          <div class="caisse-ticket-row-controls">
+            <button class="caisse-btn-mini" onclick="changeCaisseQty(${id}, -1)">-</button>
+            <span class="caisse-ticket-qty">${item.qty}</span>
+            <button class="caisse-btn-mini" onclick="changeCaisseQty(${id}, 1)">+</button>
+            <span class="caisse-ticket-price">${lineTotal.toFixed(2).replace('.', ',')} €</span>
+          </div>
+        </div>
+      `;
+    });
+    if (itemsContainer) itemsContainer.innerHTML = rowsHtml;
+  }
+
+  if (totalEl) totalEl.textContent = `${total.toFixed(2).replace('.', ',')} €`;
+
+  if (caisseSelectedVisitor && projectedRow && projectedEl && total > 0) {
+    projectedRow.classList.remove('hidden');
+    const newArdoise = (caisseSelectedVisitor.balance || 0) + total;
+    projectedEl.innerHTML = `<span style="color:#ef4444;">-${newArdoise.toFixed(2).replace('.', ',')} € (Ardoise)</span>`;
+  } else if (caisseSelectedMember && projectedRow && projectedEl && total > 0) {
+    projectedRow.classList.remove('hidden');
+    const m = caisseSelectedMember;
+    if (m.credit >= total) {
+      const newCred = m.credit - total;
+      projectedEl.innerHTML = `<span style="color:#10b981;">+${newCred.toFixed(2).replace('.', ',')} € (Crédit restant)</span>`;
+    } else if (m.credit > 0) {
+      const remainingArdoise = total - m.credit;
+      projectedEl.innerHTML = `<span style="color:#ef4444;">-${remainingArdoise.toFixed(2).replace('.', ',')} € (Nouvelle ardoise)</span>`;
+    } else {
+      const newArdoise = (m.balance || 0) + total;
+      projectedEl.innerHTML = `<span style="color:#ef4444;">-${newArdoise.toFixed(2).replace('.', ',')} € (Ardoise)</span>`;
+    }
+  } else if (projectedRow) {
+    projectedRow.classList.add('hidden');
+  }
+
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function openCaisseRechargeModal() {
+  if (!caisseSelectedMember) return;
+  const m = caisseSelectedMember;
+  window.openCreditModal(m.id, m.full_name || m.email, m.credit);
+}
+
+async function clearCaisseVisitorArdoise() {
+  if (!caisseSelectedVisitor) return;
+  const v = caisseSelectedVisitor;
+  const amountStr = (v.balance || 0).toFixed(2).replace('.', ',');
+  if (!confirm(`Confirmez-vous le règlement et la remise à zéro de l'ardoise du visiteur ${v.full_name} (${amountStr} €) ?`)) return;
+
+  show('loading');
+  const payload = {
+    is_paid: true,
+    paid_at: new Date().toISOString(),
+    paid_by_name: currentUser ? (currentUser.full_name || currentUser.email) : 'Admin'
+  };
+  const { error } = await supabaseClient
+    .from('consumptions')
+    .update(payload)
+    .eq('visitor_id', v.id)
+    .or('is_paid.eq.false,is_paid.is.null');
+  hide('loading');
+
+  if (error) {
+    alert("Erreur lors du règlement visiteur : " + error.message);
+    return;
+  }
+
+  alert(`✅ Ardoise de ${v.full_name} (${amountStr} €) soldée !`);
+  await loadCaisseVisitors();
+  caisseSelectedVisitor = caisseVisitorsList.find(item => String(item.id) === String(v.id)) || null;
+  renderCaisseVisitors(document.getElementById('caisse-visitor-new-name')?.value || '');
+  updateCaisseTicketUI();
+  if (typeof loadAdminData === 'function') loadAdminData();
+}
+window.clearCaisseVisitorArdoise = clearCaisseVisitorArdoise;
+
+async function clearCaisseMemberArdoise() {
+  if (caisseSelectedVisitor) {
+    await clearCaisseVisitorArdoise();
+    return;
+  }
+  if (!caisseSelectedMember) return;
+  const memberName = caisseSelectedMember.full_name || caisseSelectedMember.email || 'ce membre';
+  const amountStr = (caisseSelectedMember.balance || 0).toFixed(2).replace('.', ',');
+  await clearMemberBalance(caisseSelectedMember.id, memberName, amountStr);
+  await loadCaisseMembers();
+  caisseSelectedMember = caisseMembersList.find(m => m.id === caisseSelectedMember.id) || null;
+  renderCaisseMembers(document.getElementById('caisse-member-search')?.value || '');
+  updateCaisseTicketUI();
+}
+window.clearCaisseMemberArdoise = clearCaisseMemberArdoise;
+
+async function submitCaisseOrder(paymentMode = 'auto') {
+  if (caisseCart.size === 0) {
+    alert("Veuillez sélectionner au moins un article.");
+    return;
+  }
+
+  const freeCommentInput = document.getElementById('caisse-free-comment');
+  const freeCommentValue = freeCommentInput ? freeCommentInput.value.trim() : '';
+
+  if (caisseIsFreeMode && !freeCommentValue) {
+    alert("⚠️ Veuillez obligatoirement saisir un commentaire (ex: Soirée, Tournoi, Bénévoles...) pour un retrait de stock sans paiement.");
+    if (freeCommentInput) freeCommentInput.focus();
+    return;
+  }
+
+  if (caisseIsVisitorMode && !caisseSelectedVisitor) {
+    const vInput = document.getElementById('caisse-visitor-new-name');
+    if (vInput && vInput.value.trim()) {
+      const created = await createOrSelectCaisseVisitor();
+      if (!created) return;
+    } else {
+      alert("⚠️ Veuillez obligatoirement saisir un nom de visiteur ou cliquer sur son profil dans la liste.");
+      if (vInput) vInput.focus();
+      return;
+    }
+  }
+
+  if (!caisseIsFreeMode && !caisseIsVisitorMode && !caisseSelectedMember) {
+    alert("⚠️ Veuillez sélectionner un membre dans la liste (ou cliquer sur « Visiteur (Ardoise) »).");
+    return;
+  }
+
+  const selectedItems = [];
+  let totalOrderAmount = 0;
+  caisseCart.forEach((item, id) => {
+    const unitPrice = caisseIsFreeMode ? 0 : (item.drink.price || 0);
+    totalOrderAmount += unitPrice * item.qty;
+    selectedItems.push({
+      drink_id: id,
+      quantity: item.qty,
+      price_at_time: unitPrice,
+      name: item.drink.name
+    });
+  });
+
+  const itemsSummary = selectedItems.map(i => `- ${i.quantity}x ${i.name}`).join('\n');
+  const totalFormatted = totalOrderAmount.toFixed(2).replace('.', ',');
+  let confirmMessage = '';
+
+  if (caisseIsFreeMode) {
+    confirmMessage = `Confirmez-vous cette sortie de stock gratuite (0,00 €) ?\nMotif : ${freeCommentValue}\n\nArticles :\n${itemsSummary}`;
+  } else if (caisseIsVisitorMode && caisseSelectedVisitor) {
+    const vName = caisseSelectedVisitor.full_name;
+    if (paymentMode === 'cash') {
+      confirmMessage = `Confirmez-vous l'encaissement en Espèces de ${totalFormatted} € pour le visiteur ${vName} ?\n\nArticles :\n${itemsSummary}`;
+    } else if (paymentMode === 'card') {
+      confirmMessage = `Confirmez-vous l'encaissement par Carte bleue de ${totalFormatted} € pour le visiteur ${vName} ?\n\nArticles :\n${itemsSummary}`;
+    } else if (paymentMode === 'transfer') {
+      confirmMessage = `Confirmez-vous l'encaissement par Virement de ${totalFormatted} € pour le visiteur ${vName} ?\n\nArticles :\n${itemsSummary}`;
+    } else {
+      confirmMessage = `Confirmez-vous l'enregistrement sur l'ardoise du visiteur ${vName} pour un total de ${totalFormatted} € ?\n\nArticles :\n${itemsSummary}`;
+    }
+  } else if (!caisseSelectedMember) {
+    const modeLabel = paymentMode === 'cash' ? 'Espèces' : (paymentMode === 'card' ? 'Carte bleue' : (paymentMode === 'transfer' ? 'Virement' : 'Encaissement direct'));
+    confirmMessage = `Confirmez-vous cette Vente Directe de ${totalFormatted} € (${modeLabel}) ?\n\nArticles :\n${itemsSummary}`;
+  } else {
+    const memberName = caisseSelectedMember.full_name || caisseSelectedMember.email || 'ce membre';
+    if (paymentMode === 'cash') {
+      confirmMessage = `Confirmez-vous l'encaissement en Espèces de ${totalFormatted} € pour ${memberName} ?\n\nArticles :\n${itemsSummary}`;
+    } else if (paymentMode === 'card') {
+      confirmMessage = `Confirmez-vous l'encaissement par Carte bleue de ${totalFormatted} € pour ${memberName} ?\n\nArticles :\n${itemsSummary}`;
+    } else if (paymentMode === 'transfer') {
+      confirmMessage = `Confirmez-vous l'encaissement par Virement de ${totalFormatted} € pour ${memberName} ?\n\nArticles :\n${itemsSummary}`;
+    } else {
+      confirmMessage = `Confirmez-vous l'enregistrement sur le compte de ${memberName} pour un total de ${totalFormatted} € ?\n\nArticles :\n${itemsSummary}`;
+    }
+  }
+
+  if (!confirm(confirmMessage)) return;
+
+  const adminName = currentUser ? (currentUser.full_name || currentUser.profile?.full_name || currentUser.email) : 'Admin';
+  toggleLoading(true);
+
+  try {
+    if (caisseIsFreeMode) {
+      const itemsToInsert = selectedItems.map(item => ({
+        drink_id: item.drink_id,
+        quantity: item.quantity,
+        price_at_time: 0,
+        member_id: currentUser.id,
+        is_paid: true,
+        paid_at: new Date().toISOString(),
+        paid_by_name: `${adminName} (Buvette : ${freeCommentValue})`,
+        recorded_by_name: `${adminName} (Admin)`
+      }));
+
+      let { error: insertError } = await supabaseClient.from('consumptions').insert(itemsToInsert);
+      if (insertError) throw insertError;
+
+    } else if (caisseIsVisitorMode && caisseSelectedVisitor) {
+      const visitorId = caisseSelectedVisitor.id;
+      if (paymentMode === 'cash' || paymentMode === 'card' || paymentMode === 'transfer') {
+        const modeLabel = paymentMode === 'cash' ? 'Espèces' : (paymentMode === 'transfer' ? 'Virement' : 'CB');
+        const itemsToInsert = selectedItems.map(item => ({
+          drink_id: item.drink_id,
+          quantity: item.quantity,
+          price_at_time: item.price_at_time,
+          member_id: null,
+          visitor_id: visitorId,
+          is_paid: true,
+          paid_at: new Date().toISOString(),
+          paid_by_name: `Encaissé au bar (${adminName} - ${modeLabel})`,
+          recorded_by_name: `${adminName} (Admin)`
+        }));
+        let { error: insertError } = await supabaseClient.from('consumptions').insert(itemsToInsert);
+        if (insertError) throw insertError;
+      } else {
+        const itemsToInsert = selectedItems.map(item => ({
+          drink_id: item.drink_id,
+          quantity: item.quantity,
+          price_at_time: item.price_at_time,
+          member_id: null,
+          visitor_id: visitorId,
+          is_paid: false,
+          recorded_by_name: `${adminName} (Admin)`
+        }));
+        let { error: insertError } = await supabaseClient.from('consumptions').insert(itemsToInsert);
+        if (insertError) throw insertError;
+      }
+
+    } else if (!caisseSelectedMember) {
+      const modeLabel = paymentMode === 'cash' ? 'Espèces' : (paymentMode === 'card' ? 'CB' : 'Direct');
+      const itemsToInsert = selectedItems.map(item => ({
+        drink_id: item.drink_id,
+        quantity: item.quantity,
+        price_at_time: item.price_at_time,
+        member_id: currentUser.id,
+        is_paid: true,
+        paid_at: new Date().toISOString(),
+        paid_by_name: `${adminName} (Buvette : Vente directe ${modeLabel})`,
+        recorded_by_name: `${adminName} (Admin)`
+      }));
+
+      let { error: insertError } = await supabaseClient.from('consumptions').insert(itemsToInsert);
+      if (insertError) throw insertError;
+
+    } else {
+      const memberId = caisseSelectedMember.id;
+      const { data: memberProfile } = await supabaseClient
+        .from('profiles')
+        .select('id, full_name, email, credit_balance')
+        .eq('id', memberId)
+        .maybeSingle();
+
+      const memberCredit = parseFloat(memberProfile?.credit_balance) || 0;
+
+      if (paymentMode === 'cash' || paymentMode === 'card' || paymentMode === 'transfer') {
+        const modeLabel = paymentMode === 'cash' ? 'Espèces' : (paymentMode === 'transfer' ? 'Virement' : 'CB');
+        const itemsToInsert = selectedItems.map(item => ({
+          drink_id: item.drink_id,
+          quantity: item.quantity,
+          price_at_time: item.price_at_time,
+          member_id: memberId,
+          is_paid: true,
+          paid_at: new Date().toISOString(),
+          paid_by_name: `Encaissé au bar (${adminName} - ${modeLabel})`,
+          recorded_by_name: `${adminName} (Admin)`
+        }));
+
+        let { error: insertError } = await supabaseClient.from('consumptions').insert(itemsToInsert);
+        if (insertError) throw insertError;
+
+      } else {
+        let remainingCredit = memberCredit;
+        const itemsToInsert = [];
+
+        for (const item of selectedItems) {
+          const lineTotal = item.price_at_time * item.quantity;
+
+          if (item.price_at_time === 0) {
+            itemsToInsert.push({
+              drink_id: item.drink_id,
+              quantity: item.quantity,
+              price_at_time: 0,
+              member_id: memberId,
+              is_paid: true,
+              paid_at: new Date().toISOString(),
+              paid_by_name: `Gratuit (${adminName})`,
+              recorded_by_name: `${adminName} (Admin)`
+            });
+          } else if (remainingCredit >= lineTotal) {
+            remainingCredit -= lineTotal;
+            itemsToInsert.push({
+              drink_id: item.drink_id,
+              quantity: item.quantity,
+              price_at_time: item.price_at_time,
+              member_id: memberId,
+              is_paid: true,
+              paid_at: new Date().toISOString(),
+              paid_by_name: `Crédit prépayé (Servi par ${adminName})`,
+              recorded_by_name: `${adminName} (Admin)`
+            });
+          } else if (remainingCredit > 0) {
+            const covered = remainingCredit;
+            const due = lineTotal - remainingCredit;
+            remainingCredit = 0;
+
+            itemsToInsert.push({
+              drink_id: item.drink_id,
+              quantity: 1,
+              price_at_time: covered,
+              member_id: memberId,
+              is_paid: true,
+              paid_at: new Date().toISOString(),
+              paid_by_name: `Crédit prépayé partiel (Servi par ${adminName})`,
+              recorded_by_name: `${adminName} (Admin)`
+            });
+            itemsToInsert.push({
+              drink_id: item.drink_id,
+              quantity: 1,
+              price_at_time: due,
+              member_id: memberId,
+              is_paid: false,
+              recorded_by_name: `${adminName} (Admin)`
+            });
+          } else {
+            itemsToInsert.push({
+              drink_id: item.drink_id,
+              quantity: item.quantity,
+              price_at_time: item.price_at_time,
+              member_id: memberId,
+              is_paid: false,
+              recorded_by_name: `${adminName} (Admin)`
+            });
+          }
+        }
+
+        let { error: insertError } = await supabaseClient.from('consumptions').insert(itemsToInsert);
+        if (insertError) throw insertError;
+
+        if (remainingCredit !== memberCredit) {
+          await supabaseClient.from('profiles').update({ credit_balance: remainingCredit }).eq('id', memberId);
+        }
+      }
+    }
+
+    for (const item of selectedItems) {
+      const currentDrinks = (typeof drinks !== 'undefined' && drinks && drinks.length > 0) ? drinks : (window.drinks || []);
+      const drink = currentDrinks.find(d => String(d.id) === String(item.drink_id));
+      if (drink && drink.stock !== null && drink.stock !== undefined) {
+        const newStock = drink.stock - item.quantity;
+        await supabaseClient.from('drinks').update({ stock: newStock }).eq('id', drink.id);
+        drink.stock = newStock;
+      }
+    }
+
+    toggleLoading(false);
+    
+    const toastClient = caisseIsFreeMode
+      ? `Retrait gratuit (${freeCommentValue})`
+      : (caisseSelectedVisitor
+        ? `${caisseSelectedVisitor.full_name} (Visiteur)`
+        : (caisseSelectedMember ? (caisseSelectedMember.full_name || caisseSelectedMember.email) : 'Vente Directe'));
+    alert(`✅ Commande enregistrée pour ${toastClient} !`);
+
+    caisseCart.clear();
+    if (freeCommentInput) freeCommentInput.value = '';
+    if (caisseIsVisitorMode) {
+      await loadCaisseVisitors();
+      if (caisseSelectedVisitor) {
+        caisseSelectedVisitor = caisseVisitorsList.find(v => String(v.id) === String(caisseSelectedVisitor.id)) || null;
+      }
+      renderCaisseVisitors(document.getElementById('caisse-visitor-new-name')?.value || '');
+    } else {
+      await loadCaisseMembers();
+      if (caisseSelectedMember) {
+        caisseSelectedMember = caisseMembersList.find(m => m.id === caisseSelectedMember.id) || null;
+      }
+      renderCaisseMembers(document.getElementById('caisse-member-search')?.value || '');
+    }
+    renderCaisseProducts();
+    updateCaisseTicketUI();
+
+    if (typeof loadAppData === 'function') loadAppData();
+    if (typeof loadAdminData === 'function') loadAdminData();
+
+  } catch (err) {
+    toggleLoading(false);
+    alert("Erreur lors de l'enregistrement : " + err.message);
+  }
+}
+
+window.selectCaisseClient = selectCaisseClient;
+window.toggleCaisseVisitorMode = toggleCaisseVisitorMode;
+window.selectCaisseVisitor = selectCaisseVisitor;
+window.filterCaisseVisitors = filterCaisseVisitors;
+window.createOrSelectCaisseVisitor = createOrSelectCaisseVisitor;
+window.deleteCaisseVisitor = deleteCaisseVisitor;
+window.clearAllPaidVisitors = clearAllPaidVisitors;
+window.filterCaisseMembers = filterCaisseMembers;
+window.filterCaisseCategory = filterCaisseCategory;
+window.addCaisseProduct = addCaisseProduct;
+window.changeCaisseQty = changeCaisseQty;
+window.resetCaisseCart = resetCaisseCart;
+window.openCaisseRechargeModal = openCaisseRechargeModal;
+window.submitCaisseOrder = submitCaisseOrder;
+window.renderCaisseBarUI = renderCaisseBarUI;
+
 
 // --- AUTO-RÉPARATION ET SYNCHRONISATION DU PROFIL ---
 async function ensureUserProfileExists(user = currentUser) {
@@ -1715,15 +3025,18 @@ async function loadAppData() {
     // 1. Profil & Abonnements avec auto-réparation
     let profile = await ensureUserProfileExists(currentUser);
 
+    const normEmail = (currentUser.email || '').toLowerCase().trim();
+    const isOwner = normEmail === 'sebastien.tessier41@orange.fr' || normEmail === 'zizou41220@gmail.com';
+
     if (!profile) {
       currentUser.profile = {
         full_name: currentUser.email.split('@')[0],
-        role: currentUser.email === 'sebastien.tessier41@orange.fr' ? 'admin' : 'member',
+        role: isOwner ? 'admin' : 'member',
         subscriptions: []
       };
     } else {
       currentUser.profile = profile;
-      if (currentUser.email === 'sebastien.tessier41@orange.fr') {
+      if (isOwner) {
         currentUser.profile.role = 'admin';
       }
     }
@@ -1805,6 +3118,7 @@ async function loadAppData() {
     const { data: drks, error: drkError } = await supabaseClient.from('drinks').select('*');
     if (drkError) console.error("Erreur boissons:", drkError.message);
     drinks = drks || [];
+    window.drinks = drinks;
 
     // 4. Message d'accueil
     const { data: settingsData } = await supabaseClient.from('settings').select('*').eq('id', 1).maybeSingle();
@@ -2050,7 +3364,7 @@ function renderManagementUI() {
   };
 
   if (drinks) {
-    const visibleDrinks = drinks.filter(d => !isMembership(d));
+    const visibleDrinks = drinks.filter(d => !d.archived && !isMembership(d));
     const barDrinks = visibleDrinks.filter(d => getItemCategory(d) !== 'billard');
     const billiardDrinks = visibleDrinks.filter(d => getItemCategory(d) === 'billard');
 
@@ -2158,7 +3472,7 @@ async function logConsumption(id, name, price) {
 
   const imgContainer = document.getElementById('drink-confirm-image-container');
   if (drink && drink.image_url) {
-    imgContainer.innerHTML = `<img src="${drink.image_url}" alt="${name}" style="width:64px; height:64px; object-fit:contain; border-radius:8px;">`;
+    imgContainer.innerHTML = `<img src="${drink.image_url}" alt="${name}" style="width:64px; height:64px; object-fit:contain; background:#ffffff; padding:3px; border-radius:10px;">`;
   } else {
     const iconName = drink?.icon || 'glass-water';
     imgContainer.innerHTML = `<i data-lucide="${iconName}" style="width:48px; height:48px; stroke-width:1.5; color:var(--accent-gold);"></i>`;
@@ -2308,7 +3622,9 @@ async function loadAdminData() {
   document.querySelectorAll('.btn-tab').forEach(btn => {
     const tabName = btn.getAttribute('data-tab');
     if (tabName === 'adm-drinks' || tabName === 'adm-stocks') {
-      btn.style.display = canManageStock ? 'inline-block' : 'none';
+      btn.style.display = canManageStock || isSuperAdmin ? 'inline-block' : 'none';
+    } else if (tabName === 'adm-caisse') {
+      btn.style.display = isSuperAdmin || canManageStock ? 'inline-block' : 'none';
     } else {
       btn.style.display = 'inline-block';
     }
@@ -2329,6 +3645,12 @@ async function loadAdminData() {
   // 1. Unified Members Fetch
   const { data: mems } = await supabaseClient.from('profiles').select('*, subscriptions(*, subscription_types(*)), consumptions(*)').order('full_name');
   window.allMembersList = mems || [];
+
+  if (!drinks || drinks.length === 0) {
+    const { data: dData } = await supabaseClient.from('drinks').select('*').order('name');
+    if (dData) drinks = dData;
+  }
+  window.drinks = drinks;
 
   // Remplir l'onglet Consommations / Ardoises
   const consBody = document.getElementById('admin-consumption-list');
@@ -2375,16 +3697,9 @@ async function loadAdminData() {
             <td>${soldeHtml}</td>
             <td style="text-align: right;">
               <div style="display: flex; gap: 0.4rem; justify-content: flex-end; flex-wrap: wrap;">
-                <button class="btn btn-main" style="padding:4px 9px; font-size:0.8rem; background: #2563eb; color: #ffffff; border: 1px solid #3b82f6; display:inline-flex; align-items:center; gap:4px; font-weight: 600; box-shadow: 0 2px 6px rgba(37, 99, 235, 0.4);" title="Servir des boissons au bar pour ce membre" onclick="openBuvetteForMember('${m.id}')">
-                  <i data-lucide="coffee" style="width:14px; height:14px;"></i> Servir
-                </button>
-                <button class="btn btn-outline" style="border-color:#22c55e; color:#22c55e; padding:4px 9px; font-size:0.8rem; display:inline-flex; align-items:center; gap:4px;" title="Recharger le compte crédit d'avance" onclick="openCreditModal('${m.id}', '${safeName}', ${credit})">
-                  <i data-lucide="wallet" style="width:14px; height:14px;"></i> Créditer
-                </button>
                 <button class="btn btn-outline" style="padding:4px 9px; font-size:0.8rem; display:inline-flex; align-items:center; gap:4px;" title="Historique & Détails" onclick="openMemberConsumptionDetails('${m.id}', '${safeName}')">
                   <i data-lucide="eye" style="width:14px; height:14px;"></i> Détails
                 </button>
-                ${balance > 0 ? `<button class="btn btn-outline" style="border-color:#ef4444; color:#ef4444; padding:4px 9px; font-size:0.8rem; display:inline-flex; align-items:center; gap:4px;" title="Encaisser l'ardoise complète" onclick="clearMemberBalance('${m.id}', '${safeName}')"><i data-lucide="check-circle" style="width:14px; height:14px;"></i> Encaisser</button>` : ''}
               </div>
             </td>
           `;
@@ -2474,9 +3789,6 @@ async function loadAdminData() {
                 <input type="checkbox" onchange="toggleStockRights('${m.id}', this.checked)" ${m.can_manage_stock ? 'checked' : ''}>
                 Gère Stocks
               </label>
-              <button class="btn" style="background:#2563eb; color:#ffffff; border:1px solid #3b82f6; padding:3px 7px; border-radius:6px; display:inline-flex; align-items:center;" title="Servir au bar pour ce membre" onclick="openBuvetteForMember('${m.id}')"><i data-lucide="coffee" style="width:14px; height:14px;"></i></button>
-              <button class="btn btn-outline" style="border-color:#22c55e; color:#22c55e; padding:3px 7px;" title="Créditer le compte" onclick="openCreditModal('${m.id}', '${safeName}', ${credit})"><i data-lucide="wallet" style="width:14px; height:14px;"></i></button>
-              ${balance > 0 ? `<button class="btn btn-outline" style="border-color:#ef4444; color:#ef4444; padding:3px 7px;" title="Encaisser" onclick="clearMemberBalance('${m.id}', '${safeName}')"><i data-lucide="check-circle" style="width:14px; height:14px;"></i></button>` : ''}
               <button class="btn btn-outline" title="${m.role === 'admin' ? 'Rétrograder en membre simple' : 'Promouvoir Admin'}" onclick="toggleAdminRole('${m.id}', '${m.role}')">
                 <i data-lucide="${m.role === 'admin' ? 'shield-off' : 'shield'}" style="width: 14px; height: 14px;"></i>
               </button>
@@ -2569,63 +3881,111 @@ async function loadAdminData() {
     ).join('');
   }
 
-  // 3. Charger le reste (boissons, types d'abonnements)
+  // 3. Charger le reste (boissons, stocks unifiés)
   const dBody = document.getElementById('admin-drink-list');
-  dBody.innerHTML = '';
-  drinks.forEach(d => {
-    const row = document.createElement('tr');
-    const defaultIcon = getItemCategory(d) === 'billard' ? 'circle-dot' : 'glass-water';
-    const preview = d.image_url ? `<img src="${d.image_url}" style="width:32px;height:32px;object-fit:cover;border-radius:4px;" title="${d.image_url}" alt="">` : `<i data-lucide="${d.icon || defaultIcon}"></i>`;
-    const link = d.image_url ? `<a href="${d.image_url}" target="_blank" style="font-size: 0.7rem; color: var(--primary); display: block;">Voir</a>` : '';
-    const catBadge = getItemCategory(d) === 'billard'
-      ? `<span class="category-badge billiard-badge" style="font-size:0.65rem; padding:1px 6px; margin-top:3px; display:inline-block;">Billard</span>`
-      : `<span class="category-badge bar-badge" style="font-size:0.65rem; padding:1px 6px; margin-top:3px; display:inline-block;">Bar / Snack</span>`;
-
-    row.innerHTML = `
-          <td>${preview}${link}</td>
-          <td>
-            <div style="font-weight:600;">${d.name}</div>
-            ${catBadge}
-          </td>
-          <td>${d.price}€</td>
-          <td>
-            <div style="display: flex; gap: 0.5rem;">
-              <button class="btn btn-outline" onclick="editDrink(${d.id})"><i data-lucide="pencil" size="16"></i></button>
-              <button class="btn btn-outline btn-danger" onclick="deleteDrink(${d.id})"><i data-lucide="trash" size="16"></i></button>
-            </div>
-          </td>
-        `;
-    dBody.appendChild(row);
-  });
-
-  const stockBody = document.getElementById('admin-stock-list');
-  if (stockBody) {
-    stockBody.innerHTML = '';
+  if (dBody) {
+    dBody.innerHTML = '';
     drinks.forEach(d => {
-      // Don't show stock for memberships (adhésions/abonnements)
-      if (isMembership(d)) return;
       const row = document.createElement('tr');
-      const safeName = d.name.replace(/'/g, "\\'");
-      const stockVal = d.stock !== null && d.stock !== undefined ? d.stock : 'Non géré';
-      const stockDisplay = stockVal <= 0 ? `<span class="text-danger font-bold">${stockVal}</span>` : `<span class="text-success font-bold">${stockVal}</span>`;
+      const safeName = (d.name || '').replace(/'/g, "\\'");
+      const defaultIcon = getItemCategory(d) === 'billard' ? 'circle-dot' : 'glass-water';
+      const preview = d.image_url
+        ? `<img src="${d.image_url}" style="width:42px;height:42px;object-fit:contain;background:#ffffff;border-radius:8px;padding:2px;display:block;box-shadow:0 2px 5px rgba(0,0,0,0.2);" title="${d.image_url}" alt="">`
+        : `<div style="width:42px;height:42px;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--accent-gold);"><i data-lucide="${d.icon || defaultIcon}"></i></div>`;
+      const link = d.image_url ? `<a href="${d.image_url}" target="_blank" style="font-size: 0.7rem; color: var(--primary); display: block;">Voir</a>` : '';
+      const catBadge = getItemCategory(d) === 'billard'
+        ? `<span class="category-badge billiard-badge" style="font-size:0.65rem; padding:1px 6px; margin-top:3px; display:inline-block;">Billard</span>`
+        : `<span class="category-badge bar-badge" style="font-size:0.65rem; padding:1px 6px; margin-top:3px; display:inline-block;">Bar / Snack</span>`;
+
+      const isMem = isMembership(d);
+      const stockVal = (d.stock !== null && d.stock !== undefined) ? d.stock : 'Non géré';
+      const threshold = d.alert_threshold || 0;
+      let stockHtml = '';
+      if (isMem) {
+        stockHtml = `<span class="text-muted" style="font-size:0.8rem;">—</span>`;
+      } else if (stockVal === 'Non géré') {
+        stockHtml = `<span class="text-muted">Non géré</span>`;
+      } else if (stockVal <= 0) {
+        stockHtml = `<span class="text-danger font-bold" style="font-size:0.95rem;">${stockVal} (Épuisé)</span>`;
+      } else if (threshold > 0 && stockVal <= threshold) {
+        stockHtml = `<span style="color:#fbbf24; font-weight:700; font-size:0.95rem;">${stockVal} (Seuil ≤ ${threshold})</span>`;
+      } else {
+        stockHtml = `<span class="text-success font-bold" style="font-size:0.95rem;">${stockVal}</span>`;
+      }
+
+      const stockBtnHtml = !isMem
+        ? `<button class="btn btn-outline" style="display:inline-flex; align-items:center; gap:5px; padding:5px 10px; font-size:0.8rem; border-color:var(--accent-gold); color:var(--accent-gold);" title="Réapprovisionner ou faire l'inventaire" onclick="openStockModal(${d.id}, '${safeName}')">
+             <i data-lucide="package-plus" style="width:15px; height:15px;"></i> Stock
+           </button>`
+        : '';
+
+      const isArchived = d.archived === true;
+      if (isArchived) row.style.opacity = '0.6';
+      const archivedBadge = isArchived
+        ? `<span style="font-size:0.65rem; padding:1px 6px; margin-top:3px; margin-left:4px; display:inline-block; border-radius:999px; background:rgba(239,68,68,0.18); color:#fca5a5; border:1px solid rgba(239,68,68,0.4);">Désactivé</span>`
+        : '';
+
+      const toggleArchiveBtnHtml = `
+        <button class="btn btn-outline" style="display:inline-flex; align-items:center; gap:5px; padding:5px 10px; font-size:0.8rem; ${
+          isArchived
+            ? 'border-color:#10b981; color:#34d399; background:rgba(16,185,129,0.12);'
+            : 'border-color:rgba(248,113,113,0.45); color:#fca5a5;'
+        }" title="${isArchived ? 'Réactiver cet article (le rendre visible partout)' : 'Désactiver cet article (masquer de Caisse Bar, Menu QR et Consommations)'}" onclick="toggleDrinkArchived(${d.id}, ${!isArchived})">
+          <i data-lucide="${isArchived ? 'eye' : 'eye-off'}" style="width:14px; height:14px;"></i> ${isArchived ? 'Activer' : 'Désactiver'}
+        </button>
+      `;
 
       row.innerHTML = `
-        <td>${d.name}</td>
-        <td>${stockVal === 'Non géré' ? stockVal : stockDisplay}</td>
-        <td>
-          <div style="display: flex; gap: 0.5rem;">
-            <button class="btn btn-outline" title="Gérer le stock" onclick="openStockModal(${d.id}, '${safeName}')">
-              <i data-lucide="package-plus" size="16"></i>
-            </button>
-          </div>
-        </td>
-      `;
-      stockBody.appendChild(row);
+            <td>${preview}${link}</td>
+            <td>
+              <div style="font-weight:600;">${d.name}</div>
+              ${catBadge}${archivedBadge}
+            </td>
+            <td style="font-weight:600; color:var(--accent-gold);">${parseFloat(d.price || 0).toFixed(2).replace('.', ',')} €</td>
+            <td>${stockHtml}</td>
+            <td style="text-align: right;">
+              <div style="display: flex; gap: 0.45rem; justify-content: flex-end; align-items: center; flex-wrap: wrap;">
+                ${stockBtnHtml}
+                ${toggleArchiveBtnHtml}
+                <button class="btn btn-outline" title="Modifier l'article" onclick="editDrink(${d.id})"><i data-lucide="pencil" style="width:15px; height:15px;"></i></button>
+                <button class="btn btn-outline btn-danger" title="Supprimer l'article" onclick="deleteDrink(${d.id})"><i data-lucide="trash" style="width:15px; height:15px;"></i></button>
+              </div>
+            </td>
+          `;
+      dBody.appendChild(row);
     });
   }
 
   lucide.createIcons();
 }
+
+async function toggleDrinkArchived(drinkId, shouldArchive) {
+  const drink = (drinks || []).find(d => String(d.id) === String(drinkId));
+  const name = drink ? drink.name : 'cet article';
+  const msg = shouldArchive
+    ? `Désactiver "${name}" ?\n\nIl ne sera plus visible dans la Caisse Bar, le Menu QR Code ni Consommations Club (vous pourrez le réactiver à tout moment).`
+    : `Réactiver "${name}" ?\n\nIl redeviendra visible dans la Caisse Bar, le Menu QR Code et Consommations Club.`;
+  if (!confirm(msg)) return;
+
+  show('loading');
+  const { error } = await supabaseClient
+    .from('drinks')
+    .update({ archived: shouldArchive })
+    .eq('id', drinkId);
+  hide('loading');
+
+  if (error) {
+    alert("Erreur lors de la mise à jour : " + error.message + "\n\nVérifiez que le script setup_drinks_archived.sql a bien été exécuté sur Supabase.");
+    return;
+  }
+
+  if (drink) drink.archived = shouldArchive;
+  alert(shouldArchive ? `✅ "${name}" désactivé !` : `✅ "${name}" réactivé !`);
+  await loadAdminData();
+  if (typeof renderManagementUI === 'function') renderManagementUI();
+  if (typeof renderCaisseProducts === 'function') renderCaisseProducts();
+}
+window.toggleDrinkArchived = toggleDrinkArchived;
 
 async function deletePendingImport(id) {
   if (!confirm("Supprimer cet import ? Le membre ne pourra plus récupérer son abonnement automatiquement à la création de son compte.")) return;
@@ -2787,7 +4147,7 @@ window.existingMemberRecord = null;
 
 
 // Écouteur sur la saisie du nom pour l'autocomplétion intelligente
-document.getElementById('manual-mem-name').addEventListener('input', async (e) => {
+document.getElementById('manual-mem-name')?.addEventListener('input', async (e) => {
   const name = e.target.value.trim();
   if (name && window.allMembersList) {
     // Recherche insensible à la casse d'un membre existant
@@ -2814,7 +4174,7 @@ document.getElementById('manual-mem-name').addEventListener('input', async (e) =
 });
 
 // Écouteurs sur la saisie de l'email et le choix du type
-document.getElementById('manual-mem-email').addEventListener('blur', async () => {
+document.getElementById('manual-mem-email')?.addEventListener('blur', async () => {
   const email = document.getElementById('manual-mem-email').value.trim().toLowerCase();
   if (email) {
     const { data: existing } = await supabaseClient
@@ -2834,7 +4194,7 @@ document.getElementById('manual-mem-email').addEventListener('blur', async () =>
 });
 
 // Modal Nouveau Membre
-document.getElementById('add-member-btn').addEventListener('click', async () => {
+document.getElementById('add-member-btn')?.addEventListener('click', async () => {
   window.editingPendingMemberId = null;
   const { data: types } = await supabaseClient.from('subscription_types').select('*');
   const select = document.getElementById('manual-mem-type');
@@ -2891,7 +4251,7 @@ window.editPendingMember = async function (id) {
   show('member-modal');
 };
 
-document.getElementById('save-manual-member-btn').addEventListener('click', async () => {
+document.getElementById('save-manual-member-btn')?.addEventListener('click', async () => {
   const name = document.getElementById('manual-mem-name').value;
   const email = document.getElementById('manual-mem-email').value.trim().toLowerCase();
   const typeId = document.getElementById('manual-mem-type') ? document.getElementById('manual-mem-type').value : null;
@@ -2995,10 +4355,22 @@ document.getElementById('save-manual-member-btn').addEventListener('click', asyn
 document.getElementById('export-stock-csv-btn')?.addEventListener('click', async () => {
   show('loading');
   try {
-    const { data: consData, error: consErr } = await supabaseClient
+    let consData = null;
+    let consErr = null;
+    const resWithVisitors = await supabaseClient
       .from('consumptions')
-      .select('*, profiles(full_name, email), drinks(name)')
+      .select('*, profiles(full_name, email), visitors(full_name), drinks(name)')
       .order('created_at', { ascending: false });
+    if (resWithVisitors.error) {
+      const fallbackRes = await supabaseClient
+        .from('consumptions')
+        .select('*, profiles(full_name, email), drinks(name)')
+        .order('created_at', { ascending: false });
+      consData = fallbackRes.data;
+      consErr = fallbackRes.error;
+    } else {
+      consData = resWithVisitors.data;
+    }
 
     const { data: drinksData, error: drinksErr } = await supabaseClient.from('drinks').select('*');
     const { data: movementsData, error: movErr } = await supabaseClient
@@ -3056,7 +4428,9 @@ document.getElementById('export-stock-csv-btn')?.addEventListener('click', async
     const consDataArray = [["Date", "Membre", "Email", "Boisson", "Quantité", "Prix Unitaire", "Total", "Payé", "Date d'encaissement", "Encaissé par", "Servi / Enregistré par (Admin)"]];
     consData?.forEach(c => {
       const date = new Date(c.created_at).toLocaleString('fr-FR');
-      const member = c.profiles ? c.profiles.full_name : "Inconnu";
+      const member = c.profiles
+        ? c.profiles.full_name
+        : (c.visitors ? `${c.visitors.full_name} (Visiteur)` : "Inconnu");
       const email = c.profiles ? c.profiles.email : "";
       const drink = c.drinks ? c.drinks.name : "Inconnu";
       const qty = c.quantity || 1;
@@ -3267,6 +4641,11 @@ if (btnSubmitCredit) {
     const noteInput = document.getElementById('credit-note-input');
     const noteVal = noteInput ? noteInput.value.trim() : '';
 
+    const confirmCredit = confirm(
+      `Confirmez-vous l'ajout d'un crédit de ${amountVal.toFixed(2).replace('.', ',')} € (${paymentMethod}) sur le compte de ${activeCreditMember.name} ?`
+    );
+    if (!confirmCredit) return;
+
     const adminName = currentUser ? (currentUser.full_name || currentUser.profile?.full_name || currentUser.email) : 'Admin';
 
     toggleLoading(true);
@@ -3357,6 +4736,15 @@ if (btnSubmitCredit) {
 
       loadAppData();
       if (typeof loadAdminData === 'function') loadAdminData();
+      if (typeof loadCaisseMembers === 'function') {
+        loadCaisseMembers().then(() => {
+          if (caisseSelectedMember && activeCreditMember && caisseSelectedMember.id === activeCreditMember.id) {
+            caisseSelectedMember = caisseMembersList.find(m => m.id === caisseSelectedMember.id) || null;
+          }
+          if (typeof renderCaisseMembers === 'function') renderCaisseMembers(document.getElementById('caisse-member-search')?.value || '');
+          if (typeof updateCaisseTicketUI === 'function') updateCaisseTicketUI();
+        });
+      }
 
     } catch (err) {
       if (err.message?.includes('credit_balance') || err.message?.includes('schema cache')) {
@@ -3370,7 +4758,7 @@ if (btnSubmitCredit) {
   });
 }
 
-async function clearMemberBalance(memberId, memberName = '') {
+async function clearMemberBalance(memberId, memberName = '', amountStr = '') {
   let resolvedName = memberName;
   if (!resolvedName && window.allMembersList) {
     const found = window.allMembersList.find(m => String(m.id) === String(memberId));
@@ -3382,10 +4770,12 @@ async function clearMemberBalance(memberId, memberName = '') {
       if (prof) resolvedName = prof.full_name || prof.email || '';
     } catch (e) {}
   }
-  const confirmText = resolvedName
-    ? `Marquer TOUTE l'ardoise comme payée pour ${resolvedName} ?`
-    : "Marquer TOUTE l'ardoise comme payée pour ce membre ?";
-  if (!confirm(confirmText)) return;
+  const confirmMsg = (resolvedName && amountStr)
+    ? `Confirmez-vous le règlement et la remise à zéro de l'ardoise de ${resolvedName} (${amountStr} €) ?`
+    : (resolvedName
+      ? `Marquer TOUTE l'ardoise comme payée pour ${resolvedName} ?`
+      : "Marquer TOUTE l'ardoise comme payée pour ce membre ?");
+  if (!confirm(confirmMsg)) return;
 
   show('loading');
 
@@ -3506,14 +4896,7 @@ async function openMemberConsumptionDetails(memberId, memberName) {
     }
 
     const collectBtn = document.getElementById('btn-collect-tab');
-    if (totalDue > 0) {
-      collectBtn.style.display = '';
-      collectBtn.onclick = async () => {
-        document.getElementById('consumption-detail-modal').classList.add('hidden');
-        await clearMemberBalance(memberId, memberName);
-        openMemberConsumptionDetails(memberId, memberName);
-      };
-    } else {
+    if (collectBtn) {
       collectBtn.style.display = 'none';
     }
 
@@ -3912,13 +5295,15 @@ async function uploadToSupabase(file) {
 }
 
 // Drink CRUD
-document.getElementById('add-drink-btn').addEventListener('click', () => {
+document.getElementById('add-drink-btn')?.addEventListener('click', () => {
   editingDrinkId = null;
   document.getElementById('drink-modal-title').textContent = "Ajouter un article / boisson";
   document.getElementById('drink-name').value = '';
   document.getElementById('drink-price').value = '';
   const catSelect = document.getElementById('drink-category');
   if (catSelect) catSelect.value = 'bar';
+  const stockInput = document.getElementById('drink-stock');
+  if (stockInput) stockInput.value = '0';
   document.getElementById('drink-icon').value = 'cup-soda';
   document.getElementById('drink-alert-threshold').value = '0';
   document.getElementById('drink-image-url').value = '';
@@ -3936,6 +5321,8 @@ function editDrink(id) {
   document.getElementById('drink-price').value = drink.price;
   const catSelect = document.getElementById('drink-category');
   if (catSelect) catSelect.value = getItemCategory(drink);
+  const stockInput = document.getElementById('drink-stock');
+  if (stockInput) stockInput.value = (drink.stock !== null && drink.stock !== undefined) ? drink.stock : 0;
   document.getElementById('drink-alert-threshold').value = drink.alert_threshold || 0;
   document.getElementById('drink-icon').value = drink.icon || 'cup-soda';
   document.getElementById('drink-image-url').value = drink.image_url || '';
@@ -3943,9 +5330,10 @@ function editDrink(id) {
   show('drink-modal');
   lucide.createIcons();
 }
+
 window.editDrink = editDrink;
 
-document.getElementById('save-drink-btn').addEventListener('click', async () => {
+document.getElementById('save-drink-btn')?.addEventListener('click', async () => {
   try {
     const name = document.getElementById('drink-name').value;
     const price = document.getElementById('drink-price').value;
@@ -3964,11 +5352,14 @@ document.getElementById('save-drink-btn').addEventListener('click', async () => 
     const catSelect = document.getElementById('drink-category');
     const category = catSelect ? catSelect.value : getItemCategory({ name });
     const alert_threshold = document.getElementById('drink-alert-threshold').value;
+    const stockInput = document.getElementById('drink-stock');
+    const stockVal = stockInput ? (parseInt(stockInput.value, 10) || 0) : 0;
     const drinkData = {
       name,
       price: parseFloat(price),
       icon,
       image_url,
+      stock: stockVal,
       alert_threshold: parseInt(alert_threshold) || 0,
       category
     };
@@ -4012,7 +5403,7 @@ async function deleteDrink(id) {
 window.deleteDrink = deleteDrink;
 
 // Sub Types Logic
-document.getElementById('add-subtype-btn').addEventListener('click', () => {
+document.getElementById('add-subtype-btn')?.addEventListener('click', () => {
   editingSubTypeId = null;
   document.getElementById('subtype-modal-title').textContent = "Ajouter un type d'abonnement";
   document.getElementById('subtype-name').value = '';
@@ -4036,7 +5427,7 @@ async function editSubType(id) {
   show('subtype-modal');
 }
 
-document.getElementById('save-subtype-btn').addEventListener('click', async () => {
+document.getElementById('save-subtype-btn')?.addEventListener('click', async () => {
   const name = document.getElementById('subtype-name').value;
   const duration = document.getElementById('subtype-duration').value;
   const price = document.getElementById('subtype-price').value;
@@ -4108,11 +5499,11 @@ document.getElementById('save-config-btn').addEventListener('click', async () =>
 
 
 // --- CSV IMPORT (générique : nom, email, montant, date) ---
-document.getElementById('csv-import-btn').addEventListener('click', () => {
-  document.getElementById('csv-import').click();
+document.getElementById('csv-import-btn')?.addEventListener('click', () => {
+  document.getElementById('csv-import')?.click();
 });
 
-document.getElementById('csv-import').addEventListener('change', async (e) => {
+document.getElementById('csv-import')?.addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
 
