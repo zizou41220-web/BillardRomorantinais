@@ -2619,11 +2619,61 @@ async function clearCaisseMemberArdoise() {
 }
 window.clearCaisseMemberArdoise = clearCaisseMemberArdoise;
 
-async function submitCaisseOrder(paymentMode = 'auto') {
-  if (caisseCart.size === 0) {
-    alert("Veuillez sélectionner au moins un article.");
-    return;
+async function applyCashPartialSettlement(idField, targetId, cashAmount, adminName) {
+  let remaining = Math.round((cashAmount || 0) * 100) / 100;
+  if (remaining <= 0) return;
+
+  const { data: unpaidRows, error } = await supabaseClient
+    .from('consumptions')
+    .select('*')
+    .eq(idField, targetId)
+    .or('is_paid.eq.false,is_paid.is.null')
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+
+  const now = new Date().toISOString();
+  const paidBy = `Encaissé au bar (${adminName} - Espèces)`;
+
+  for (const row of (unpaidRows || [])) {
+    if (remaining <= 0.001) break;
+    const lineTotal = Math.round(((row.price_at_time || 0) * (row.quantity || 1)) * 100) / 100;
+    if (lineTotal <= 0) continue;
+
+    if (remaining >= lineTotal - 0.001) {
+      const { error: updErr } = await supabaseClient
+        .from('consumptions')
+        .update({ is_paid: true, paid_at: now, paid_by_name: paidBy })
+        .eq('id', row.id);
+      if (updErr) throw updErr;
+      remaining = Math.max(0, Math.round((remaining - lineTotal) * 100) / 100);
+    } else {
+      const unpaidRemainder = Math.round((lineTotal - remaining) * 100) / 100;
+      const { error: updErr } = await supabaseClient
+        .from('consumptions')
+        .update({ quantity: 1, price_at_time: unpaidRemainder })
+        .eq('id', row.id);
+      if (updErr) throw updErr;
+
+      const splitPaid = {
+        drink_id: row.drink_id,
+        quantity: 1,
+        price_at_time: remaining,
+        member_id: row.member_id || null,
+        visitor_id: row.visitor_id || null,
+        is_paid: true,
+        paid_at: now,
+        paid_by_name: paidBy,
+        recorded_by_name: row.recorded_by_name || `${adminName} (Admin)`
+      };
+      const { error: insErr } = await supabaseClient.from('consumptions').insert(splitPaid);
+      if (insErr) throw insErr;
+      remaining = 0;
+    }
   }
+}
+
+async function submitCaisseOrder(paymentMode = 'auto') {
+  const isDirectPay = (paymentMode === 'cash' || paymentMode === 'card' || paymentMode === 'transfer');
 
   const freeCommentInput = document.getElementById('caisse-free-comment');
   const freeCommentValue = freeCommentInput ? freeCommentInput.value.trim() : '';
@@ -2651,6 +2701,15 @@ async function submitCaisseOrder(paymentMode = 'auto') {
     return;
   }
 
+  const existingBalance = caisseIsVisitorMode
+    ? (parseFloat(caisseSelectedVisitor?.balance) || 0)
+    : (parseFloat(caisseSelectedMember?.balance) || 0);
+
+  if (caisseCart.size === 0 && (!isDirectPay || existingBalance <= 0.001)) {
+    alert("Veuillez sélectionner au moins un article.");
+    return;
+  }
+
   const selectedItems = [];
   let totalOrderAmount = 0;
   caisseCart.forEach((item, id) => {
@@ -2666,34 +2725,88 @@ async function submitCaisseOrder(paymentMode = 'auto') {
 
   const itemsSummary = selectedItems.map(i => `- ${i.quantity}x ${i.name}`).join('\n');
   const totalFormatted = totalOrderAmount.toFixed(2).replace('.', ',');
+  const existingFormatted = existingBalance.toFixed(2).replace('.', ',');
+  const combinedTotal = Math.round((totalOrderAmount + existingBalance) * 100) / 100;
+  const combinedFormatted = combinedTotal.toFixed(2).replace('.', ',');
+
+  let includeArdoise = false;
+  let cashPaidAmount = combinedTotal;
+  let isPartialCash = false;
+
+  if (isDirectPay && existingBalance > 0.001) {
+    const clientLabel = caisseIsVisitorMode
+      ? `le visiteur ${caisseSelectedVisitor.full_name}`
+      : (caisseSelectedMember.full_name || caisseSelectedMember.email || 'ce membre');
+
+    if (paymentMode === 'cash') {
+      // Espèces : permet de payer tout ou partie de (commande + ardoise)
+      const rawPaid = prompt(
+        `💵 Paiement en Espèces pour ${clientLabel}\n` +
+        (selectedItems.length > 0 ? `• Commande actuelle : ${totalFormatted} €\n` : '') +
+        `• Ardoise en cours : ${existingFormatted} €\n` +
+        `• TOTAL DÛ : ${combinedFormatted} €\n\n` +
+        `Saisissez le montant encaissé en espèces\n(laissez ${combinedTotal.toFixed(2)} pour tout solder, ou entrez un montant partiel) :`,
+        combinedTotal.toFixed(2)
+      );
+      if (rawPaid === null) return;
+      const parsedPaid = parseFloat(String(rawPaid).replace(',', '.').trim());
+      if (isNaN(parsedPaid) || parsedPaid <= 0) {
+        alert("⚠️ Veuillez saisir un montant valide supérieur à 0 €.");
+        return;
+      }
+      if (parsedPaid > combinedTotal + 0.001) {
+        alert(`⚠️ Le montant saisi (${parsedPaid.toFixed(2).replace('.', ',')} €) dépasse le total dû (${combinedFormatted} €).`);
+        return;
+      }
+      cashPaidAmount = Math.round(parsedPaid * 100) / 100;
+      if (cashPaidAmount >= combinedTotal - 0.001) {
+        includeArdoise = true;
+      } else {
+        isPartialCash = true;
+      }
+    } else {
+      // Carte bleue ou Virement : règle obligatoirement la totalité (commande + toute l'ardoise)
+      includeArdoise = true;
+    }
+  }
+
+  const grandTotal = (paymentMode === 'cash' && existingBalance > 0.001)
+    ? cashPaidAmount
+    : (totalOrderAmount + (includeArdoise ? existingBalance : 0));
+  const grandTotalFormatted = grandTotal.toFixed(2).replace('.', ',');
+  const remainingAfterCashFormatted = Math.max(0, combinedTotal - grandTotal).toFixed(2).replace('.', ',');
+  const ardoiseNote = isPartialCash
+    ? `\n(Règlement partiel en espèces — reste en ardoise : ${remainingAfterCashFormatted} €)`
+    : (includeArdoise ? `\n(Inclut le règlement total de l'ardoise de ${existingFormatted} €)` : '');
+  const articlesNote = selectedItems.length > 0 ? `\n\nArticles :\n${itemsSummary}` : '';
   let confirmMessage = '';
 
   if (caisseIsFreeMode) {
-    confirmMessage = `Confirmez-vous cette sortie de stock gratuite (0,00 €) ?\nMotif : ${freeCommentValue}\n\nArticles :\n${itemsSummary}`;
+    confirmMessage = `Confirmez-vous cette sortie de stock gratuite (0,00 €) ?\nMotif : ${freeCommentValue}${articlesNote}`;
   } else if (caisseIsVisitorMode && caisseSelectedVisitor) {
     const vName = caisseSelectedVisitor.full_name;
     if (paymentMode === 'cash') {
-      confirmMessage = `Confirmez-vous l'encaissement en Espèces de ${totalFormatted} € pour le visiteur ${vName} ?\n\nArticles :\n${itemsSummary}`;
+      confirmMessage = `Confirmez-vous l'encaissement en Espèces de ${grandTotalFormatted} € pour le visiteur ${vName} ?${ardoiseNote}${articlesNote}`;
     } else if (paymentMode === 'card') {
-      confirmMessage = `Confirmez-vous l'encaissement par Carte bleue de ${totalFormatted} € pour le visiteur ${vName} ?\n\nArticles :\n${itemsSummary}`;
+      confirmMessage = `Confirmez-vous l'encaissement par Carte bancaire de ${grandTotalFormatted} € pour le visiteur ${vName} ?${ardoiseNote}${articlesNote}`;
     } else if (paymentMode === 'transfer') {
-      confirmMessage = `Confirmez-vous l'encaissement par Virement de ${totalFormatted} € pour le visiteur ${vName} ?\n\nArticles :\n${itemsSummary}`;
+      confirmMessage = `Confirmez-vous l'encaissement par Virement de ${grandTotalFormatted} € pour le visiteur ${vName} ?${ardoiseNote}${articlesNote}`;
     } else {
-      confirmMessage = `Confirmez-vous l'enregistrement sur l'ardoise du visiteur ${vName} pour un total de ${totalFormatted} € ?\n\nArticles :\n${itemsSummary}`;
+      confirmMessage = `Confirmez-vous l'enregistrement sur l'ardoise du visiteur ${vName} pour un total de ${totalFormatted} € ?${articlesNote}`;
     }
   } else if (!caisseSelectedMember) {
-    const modeLabel = paymentMode === 'cash' ? 'Espèces' : (paymentMode === 'card' ? 'Carte bleue' : (paymentMode === 'transfer' ? 'Virement' : 'Encaissement direct'));
-    confirmMessage = `Confirmez-vous cette Vente Directe de ${totalFormatted} € (${modeLabel}) ?\n\nArticles :\n${itemsSummary}`;
+    const modeLabel = paymentMode === 'cash' ? 'Espèces' : (paymentMode === 'card' ? 'Carte bancaire' : (paymentMode === 'transfer' ? 'Virement' : 'Encaissement direct'));
+    confirmMessage = `Confirmez-vous cette Vente Directe de ${totalFormatted} € (${modeLabel}) ?${articlesNote}`;
   } else {
     const memberName = caisseSelectedMember.full_name || caisseSelectedMember.email || 'ce membre';
     if (paymentMode === 'cash') {
-      confirmMessage = `Confirmez-vous l'encaissement en Espèces de ${totalFormatted} € pour ${memberName} ?\n\nArticles :\n${itemsSummary}`;
+      confirmMessage = `Confirmez-vous l'encaissement en Espèces de ${grandTotalFormatted} € pour ${memberName} ?${ardoiseNote}${articlesNote}`;
     } else if (paymentMode === 'card') {
-      confirmMessage = `Confirmez-vous l'encaissement par Carte bleue de ${totalFormatted} € pour ${memberName} ?\n\nArticles :\n${itemsSummary}`;
+      confirmMessage = `Confirmez-vous l'encaissement par Carte bancaire de ${grandTotalFormatted} € pour ${memberName} ?${ardoiseNote}${articlesNote}`;
     } else if (paymentMode === 'transfer') {
-      confirmMessage = `Confirmez-vous l'encaissement par Virement de ${totalFormatted} € pour ${memberName} ?\n\nArticles :\n${itemsSummary}`;
+      confirmMessage = `Confirmez-vous l'encaissement par Virement de ${grandTotalFormatted} € pour ${memberName} ?${ardoiseNote}${articlesNote}`;
     } else {
-      confirmMessage = `Confirmez-vous l'enregistrement sur le compte de ${memberName} pour un total de ${totalFormatted} € ?\n\nArticles :\n${itemsSummary}`;
+      confirmMessage = `Confirmez-vous l'enregistrement sur le compte de ${memberName} pour un total de ${totalFormatted} € ?${articlesNote}`;
     }
   }
 
@@ -2722,19 +2835,50 @@ async function submitCaisseOrder(paymentMode = 'auto') {
       const visitorId = caisseSelectedVisitor.id;
       if (paymentMode === 'cash' || paymentMode === 'card' || paymentMode === 'transfer') {
         const modeLabel = paymentMode === 'cash' ? 'Espèces' : (paymentMode === 'transfer' ? 'Virement' : 'CB');
-        const itemsToInsert = selectedItems.map(item => ({
-          drink_id: item.drink_id,
-          quantity: item.quantity,
-          price_at_time: item.price_at_time,
-          member_id: null,
-          visitor_id: visitorId,
-          is_paid: true,
-          paid_at: new Date().toISOString(),
-          paid_by_name: `Encaissé au bar (${adminName} - ${modeLabel})`,
-          recorded_by_name: `${adminName} (Admin)`
-        }));
-        let { error: insertError } = await supabaseClient.from('consumptions').insert(itemsToInsert);
-        if (insertError) throw insertError;
+        if (isPartialCash) {
+          if (selectedItems.length > 0) {
+            const itemsToInsert = selectedItems.map(item => ({
+              drink_id: item.drink_id,
+              quantity: item.quantity,
+              price_at_time: item.price_at_time,
+              member_id: null,
+              visitor_id: visitorId,
+              is_paid: false,
+              recorded_by_name: `${adminName} (Admin)`
+            }));
+            let { error: insertError } = await supabaseClient.from('consumptions').insert(itemsToInsert);
+            if (insertError) throw insertError;
+          }
+          await applyCashPartialSettlement('visitor_id', visitorId, cashPaidAmount, adminName);
+        } else {
+          if (selectedItems.length > 0) {
+            const itemsToInsert = selectedItems.map(item => ({
+              drink_id: item.drink_id,
+              quantity: item.quantity,
+              price_at_time: item.price_at_time,
+              member_id: null,
+              visitor_id: visitorId,
+              is_paid: true,
+              paid_at: new Date().toISOString(),
+              paid_by_name: `Encaissé au bar (${adminName} - ${modeLabel})`,
+              recorded_by_name: `${adminName} (Admin)`
+            }));
+            let { error: insertError } = await supabaseClient.from('consumptions').insert(itemsToInsert);
+            if (insertError) throw insertError;
+          }
+          if (includeArdoise) {
+            const { error: settleErr } = await supabaseClient
+              .from('consumptions')
+              .update({
+                is_paid: true,
+                paid_at: new Date().toISOString(),
+                paid_by_name: `Encaissé au bar (${adminName} - ${modeLabel})`
+              })
+              .eq('visitor_id', visitorId)
+              .or('is_paid.eq.false,is_paid.is.null');
+            if (settleErr) throw settleErr;
+          }
+        }
       } else {
         const itemsToInsert = selectedItems.map(item => ({
           drink_id: item.drink_id,
@@ -2777,19 +2921,49 @@ async function submitCaisseOrder(paymentMode = 'auto') {
 
       if (paymentMode === 'cash' || paymentMode === 'card' || paymentMode === 'transfer') {
         const modeLabel = paymentMode === 'cash' ? 'Espèces' : (paymentMode === 'transfer' ? 'Virement' : 'CB');
-        const itemsToInsert = selectedItems.map(item => ({
-          drink_id: item.drink_id,
-          quantity: item.quantity,
-          price_at_time: item.price_at_time,
-          member_id: memberId,
-          is_paid: true,
-          paid_at: new Date().toISOString(),
-          paid_by_name: `Encaissé au bar (${adminName} - ${modeLabel})`,
-          recorded_by_name: `${adminName} (Admin)`
-        }));
+        if (isPartialCash) {
+          if (selectedItems.length > 0) {
+            const itemsToInsert = selectedItems.map(item => ({
+              drink_id: item.drink_id,
+              quantity: item.quantity,
+              price_at_time: item.price_at_time,
+              member_id: memberId,
+              is_paid: false,
+              recorded_by_name: `${adminName} (Admin)`
+            }));
+            let { error: insertError } = await supabaseClient.from('consumptions').insert(itemsToInsert);
+            if (insertError) throw insertError;
+          }
+          await applyCashPartialSettlement('member_id', memberId, cashPaidAmount, adminName);
+        } else {
+          if (selectedItems.length > 0) {
+            const itemsToInsert = selectedItems.map(item => ({
+              drink_id: item.drink_id,
+              quantity: item.quantity,
+              price_at_time: item.price_at_time,
+              member_id: memberId,
+              is_paid: true,
+              paid_at: new Date().toISOString(),
+              paid_by_name: `Encaissé au bar (${adminName} - ${modeLabel})`,
+              recorded_by_name: `${adminName} (Admin)`
+            }));
 
-        let { error: insertError } = await supabaseClient.from('consumptions').insert(itemsToInsert);
-        if (insertError) throw insertError;
+            let { error: insertError } = await supabaseClient.from('consumptions').insert(itemsToInsert);
+            if (insertError) throw insertError;
+          }
+          if (includeArdoise) {
+            const { error: settleErr } = await supabaseClient
+              .from('consumptions')
+              .update({
+                is_paid: true,
+                paid_at: new Date().toISOString(),
+                paid_by_name: `Encaissé au bar (${adminName} - ${modeLabel})`
+              })
+              .eq('member_id', memberId)
+              .or('is_paid.eq.false,is_paid.is.null');
+            if (settleErr) throw settleErr;
+          }
+        }
 
       } else {
         let remainingCredit = memberCredit;
